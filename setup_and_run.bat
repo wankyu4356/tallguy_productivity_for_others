@@ -1,168 +1,134 @@
 @echo off
 setlocal enabledelayedexpansion
-chcp 65001 >nul 2>&1
-title 딜사이트플러스 뉴스 클리퍼 설치 및 실행
+title DealSitePlus News Clipper - Setup and Run
 
 echo ============================================
-echo   딜사이트플러스 뉴스 클리퍼 설치 및 실행
+echo   DealSitePlus News Clipper - Setup and Run
 echo ============================================
 echo.
 
-REM ── 1. Python 확인 및 자동 설치 ──
-echo [1/6] Python 확인 중...
+REM == 1. Check Python ==
+echo [1/5] Checking Python...
 python --version >nul 2>&1
-if errorlevel 1 (
-    echo        Python이 없습니다. 자동 설치를 시작합니다...
-    echo.
+if errorlevel 1 goto :no_python
+for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo        %%v found
+goto :python_ok
 
-    REM winget으로 시도
-    winget --version >nul 2>&1
-    if not errorlevel 1 (
-        echo        winget으로 Python 설치 중...
-        winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements
-        if errorlevel 1 (
-            goto :python_manual
-        )
-        echo.
-        echo [알림] Python 설치 완료. PATH 적용을 위해 이 창을 닫고
-        echo        setup_and_run.bat 를 다시 실행해주세요.
-        echo.
-        pause
-        exit /b 0
-    )
-
-    REM winget 없으면 curl로 직접 다운로드
-    echo        winget이 없어 직접 다운로드합니다...
-    curl -L -o "%TEMP%\python_installer.exe" "https://www.python.org/ftp/python/3.12.8/python-3.12.8-amd64.exe"
-    if errorlevel 1 (
-        goto :python_manual
-    )
-    echo        Python 설치 프로그램 실행 중...
-    "%TEMP%\python_installer.exe" /passive InstallAllUsers=0 PrependPath=1 Include_test=0
-    if errorlevel 1 (
-        goto :python_manual
-    )
-    del "%TEMP%\python_installer.exe" >nul 2>&1
-    echo.
-    echo [알림] Python 설치 완료. PATH 적용을 위해 이 창을 닫고
-    echo        setup_and_run.bat 를 다시 실행해주세요.
-    echo.
-    pause
-    exit /b 0
-)
-for /f "tokens=2" %%v in ('python --version 2^>^&1') do echo        Python %%v 확인됨
-
-REM ── 2. pip 확인 ──
+:no_python
+echo        Python not found. Trying to install...
 echo.
-echo [2/6] pip 확인 중...
-python -m pip --version >nul 2>&1
-if errorlevel 1 (
-    echo        pip 설치 중...
-    python -m ensurepip --upgrade
-)
-python -m pip install --upgrade pip >nul 2>&1
-echo        pip 확인됨
-
-REM ── 3. Edge 브라우저 확인 ──
+winget --version >nul 2>&1
+if errorlevel 1 goto :no_winget
+echo        Installing Python via winget...
+winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements
 echo.
-echo [3/6] Edge 브라우저 확인 중...
-if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" (
-    echo        Edge 브라우저 확인됨
-) else if exist "%ProgramFiles%\Microsoft\Edge\Application\msedge.exe" (
-    echo        Edge 브라우저 확인됨
-) else (
-    echo.
-    echo [경고] Edge 브라우저를 찾을 수 없습니다.
-    echo        Windows 10/11에는 기본 설치되어 있어야 합니다.
-    echo        없다면 https://www.microsoft.com/edge 에서 설치해주세요.
-    echo.
-)
-echo        (EdgeDriver는 Selenium이 자동으로 다운로드합니다)
-
-REM ── 4. 패키지 설치 ──
+echo [!!] Python installed. Close this window and run setup_and_run.bat again.
 echo.
-echo [4/6] Python 패키지 설치 중...
-python -m pip install -r requirements.txt
-if errorlevel 1 (
-    echo.
-    echo [오류] 패키지 설치 실패
-    pause
-    exit /b 1
-)
-echo        패키지 설치 완료
-
-REM ── 5. .env 파일 설정 ──
-echo.
-echo [5/6] 환경변수 설정 확인 중...
-if not exist .env (
-    echo.
-    echo [알림] .env 파일이 없습니다. 설정을 입력해주세요.
-    echo.
-
-    set /p "DS_ID=  딜사이트플러스 아이디: "
-    set /p "DS_PW=  딜사이트플러스 비밀번호: "
-    set /p "API_KEY=  Anthropic API Key (sk-ant-...): "
-
-    (
-        echo # DealSitePlus credentials
-        echo DEALSITEPLUS_ID=!DS_ID!
-        echo DEALSITEPLUS_PW=!DS_PW!
-        echo.
-        echo # Claude API
-        echo ANTHROPIC_API_KEY=!API_KEY!
-        echo CLAUDE_MODEL=claude-sonnet-4-20250514
-        echo.
-        echo # App settings
-        echo OUTPUT_DIR=./output
-        echo LOG_LEVEL=INFO
-        echo HOST=0.0.0.0
-        echo PORT=8000
-        echo.
-        echo # Browser settings
-        echo BROWSER_HEADLESS=true
-        echo CRAWL_TIMEOUT_MS=30000
-        echo NAVIGATION_TIMEOUT_MS=15000
-        echo MAX_CONCURRENT_PAGES=3
-        echo.
-        echo # Cleanup
-        echo CLEANUP_HOURS=24
-    ) > .env
-
-    echo.
-    echo        .env 설정 완료
-) else (
-    echo        .env 파일 이미 존재함 (기존 설정 유지)
-)
-
-REM ── 6. 서버 실행 ──
-echo.
-echo [6/6] 서버 시작 중...
-echo.
-echo ============================================
-echo   브라우저에서 http://localhost:8000 접속
-echo   종료하려면 이 창에서 Ctrl+C
-echo ============================================
-echo.
-
-REM 브라우저 자동 열기
-start http://localhost:8000
-
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-echo.
-echo 서버가 종료되었습니다.
 pause
 exit /b 0
 
-:python_manual
+:no_winget
+echo        winget not available. Downloading Python installer...
+curl -L -o "%TEMP%\python_installer.exe" "https://www.python.org/ftp/python/3.12.8/python-3.12.8-amd64.exe"
+if errorlevel 1 goto :python_fail
+echo        Running Python installer...
+"%TEMP%\python_installer.exe" /passive InstallAllUsers=0 PrependPath=1 Include_test=0
+del "%TEMP%\python_installer.exe" >nul 2>&1
 echo.
-echo [오류] Python 자동 설치에 실패했습니다.
+echo [!!] Python installed. Close this window and run setup_and_run.bat again.
 echo.
-echo  수동 설치 방법:
-echo  1. https://www.python.org/downloads/ 접속
-echo  2. "Download Python 3.12" 클릭
-echo  3. 설치 시 "Add Python to PATH" 반드시 체크
-echo  4. 설치 후 이 파일을 다시 실행하세요
+pause
+exit /b 0
+
+:python_fail
+echo.
+echo [ERROR] Python auto-install failed.
+echo.
+echo   1. Go to https://www.python.org/downloads/
+echo   2. Download Python 3.12
+echo   3. CHECK "Add Python to PATH" during install
+echo   4. Run this file again
 echo.
 pause
 exit /b 1
+
+:python_ok
+
+REM == 2. Check pip ==
+echo.
+echo [2/5] Checking pip...
+python -m pip --version >nul 2>&1
+if errorlevel 1 python -m ensurepip --upgrade >nul 2>&1
+python -m pip install --upgrade pip >nul 2>&1
+echo        pip OK
+
+REM == 3. Install packages ==
+echo.
+echo [3/5] Installing Python packages...
+python -m pip install -r requirements.txt
+if errorlevel 1 goto :pip_fail
+echo        Packages installed
+goto :pip_ok
+
+:pip_fail
+echo.
+echo [ERROR] Package install failed.
+pause
+exit /b 1
+
+:pip_ok
+
+REM == 4. Setup .env ==
+echo.
+echo [4/5] Checking .env config...
+if exist .env (
+    echo        .env exists - keeping current settings
+    goto :env_done
+)
+echo.
+echo   .env not found. Enter your credentials:
+echo.
+set /p "DS_ID=  DealSitePlus ID: "
+set /p "DS_PW=  DealSitePlus Password: "
+set /p "API_KEY=  Anthropic API Key: "
+echo # DealSitePlus credentials> .env
+echo DEALSITEPLUS_ID=!DS_ID!>> .env
+echo DEALSITEPLUS_PW=!DS_PW!>> .env
+echo.>> .env
+echo # Claude API>> .env
+echo ANTHROPIC_API_KEY=!API_KEY!>> .env
+echo CLAUDE_MODEL=claude-sonnet-4-20250514>> .env
+echo.>> .env
+echo # App settings>> .env
+echo OUTPUT_DIR=./output>> .env
+echo LOG_LEVEL=INFO>> .env
+echo HOST=0.0.0.0>> .env
+echo PORT=8000>> .env
+echo.>> .env
+echo # Browser settings>> .env
+echo BROWSER_HEADLESS=true>> .env
+echo CRAWL_TIMEOUT_MS=30000>> .env
+echo NAVIGATION_TIMEOUT_MS=15000>> .env
+echo MAX_CONCURRENT_PAGES=3>> .env
+echo.>> .env
+echo # Cleanup>> .env
+echo CLEANUP_HOURS=24>> .env
+echo.
+echo        .env created
+
+:env_done
+
+REM == 5. Start server ==
+echo.
+echo [5/5] Starting server...
+echo.
+echo ============================================
+echo   Open http://localhost:8000 in your browser
+echo   Press Ctrl+C to stop the server
+echo ============================================
+echo.
+start http://localhost:8000
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+echo.
+echo Server stopped.
+pause
