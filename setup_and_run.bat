@@ -1,6 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
 title DealSitePlus News Clipper - Setup and Run
+
+REM == Get script directory ==
+cd /d "%~dp0"
+
 echo ============================================
 echo   DealSitePlus News Clipper - Setup and Run
 echo ============================================
@@ -54,10 +58,10 @@ python -m pip --version >nul 2>&1
 if errorlevel 1 python -m ensurepip --upgrade >nul 2>&1
 python -m pip install --upgrade pip >nul 2>&1
 echo        pip OK
-REM == 3. Install packages ==
+REM == 3. Install packages (inline) ==
 echo.
 echo [3/5] Installing Python packages...
-python -m pip install -r requirements.txt
+python -m pip install fastapi>=0.115.0 "uvicorn[standard]>=0.30.0" jinja2>=3.1.0 python-multipart>=0.0.9 selenium>=4.25.0 anthropic>=0.39.0 pypdf>=4.0.0 reportlab>=4.0.0 python-docx>=1.1.0 holidays>=0.60 python-dateutil>=2.9.0 pydantic-settings>=2.5.0 aiofiles>=24.0.0 python-dotenv>=1.0.0 httpx>=0.27.0 tzdata>=2024.1 beautifulsoup4>=4.12.0
 if errorlevel 1 goto :pip_fail
 echo        Packages installed
 goto :pip_ok
