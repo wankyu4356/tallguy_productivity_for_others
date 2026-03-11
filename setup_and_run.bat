@@ -9,6 +9,9 @@ echo.
 
 REM == Work in user's Desktop\DealSitePlus folder ==
 set "WORK_DIR=%USERPROFILE%\Desktop\DealSitePlus"
+set "REPO_URL=https://github.com/wankyu4356/tallguy_productivity_for_others.git"
+set "BRANCH=claude/adapt-deal-site-plus-FBPym"
+set "ZIP_URL=https://github.com/wankyu4356/tallguy_productivity_for_others/archive/refs/heads/claude/adapt-deal-site-plus-FBPym.zip"
 
 REM == 1. Check Python ==
 echo [1/6] Checking Python...
@@ -59,12 +62,55 @@ if errorlevel 1 python -m ensurepip --upgrade >nul 2>&1
 python -m pip install --upgrade pip >nul 2>&1
 echo        OK
 
-REM == 3. Download project ==
-echo [3/6] Downloading project files...
-if exist "%WORK_DIR%\app\main.py" goto :already_downloaded
-echo        Downloading from GitHub...
+REM == 3. Download / Update project ==
+echo [3/6] Downloading / updating project files...
+
+REM -- Check if git is available --
+git --version >nul 2>&1
+if errorlevel 1 goto :no_git
+
+REM ===== Git is available =====
+if exist "%WORK_DIR%\.git" goto :git_pull
+
+REM -- First time: git clone --
+echo        Cloning repository...
+git clone -b %BRANCH% --single-branch --depth 1 "%REPO_URL%" "%WORK_DIR%"
+if errorlevel 1 goto :git_clone_fail
+echo        Clone complete!
+goto :download_done
+
+:git_pull
+REM -- Already cloned: git pull to update --
+echo        Updating via git pull...
+cd /d "%WORK_DIR%"
+git fetch origin %BRANCH% --depth 1 2>nul
+if errorlevel 1 (
+    echo        Network error, retrying...
+    timeout /t 2 /nobreak >nul
+    git fetch origin %BRANCH% --depth 1 2>nul
+)
+git reset --hard origin/%BRANCH% >nul 2>&1
+if errorlevel 1 (
+    echo        [!] Update failed - using existing files
+    goto :download_done
+)
+for /f "tokens=*" %%h in ('git log -1 --format^=%%h 2^>nul') do set "COMMIT=%%h"
+echo        Updated to latest version (!COMMIT!)
+goto :download_done
+
+:git_clone_fail
+echo        Git clone failed, falling back to ZIP download...
+goto :zip_download
+
+:no_git
+REM ===== No git: use ZIP download =====
+if exist "%WORK_DIR%\app\main.py" goto :zip_update
+
+:zip_download
+REM -- First time ZIP download --
+echo        Downloading from GitHub (ZIP)...
 if not exist "%WORK_DIR%" mkdir "%WORK_DIR%"
-curl -L -o "%TEMP%\dealsiteplus.zip" "https://github.com/wankyu4356/tallguy_productivity_for_others/archive/refs/heads/claude/adapt-deal-site-plus-FBPym.zip"
+curl -L -o "%TEMP%\dealsiteplus.zip" "%ZIP_URL%"
 if errorlevel 1 goto :download_fail
 echo        Extracting...
 powershell -Command "Expand-Archive -Path '%TEMP%\dealsiteplus.zip' -DestinationPath '%TEMP%\dealsiteplus_tmp' -Force"
@@ -74,8 +120,29 @@ rd /s /q "%TEMP%\dealsiteplus_tmp" >nul 2>&1
 del "%TEMP%\dealsiteplus.zip" >nul 2>&1
 echo        Downloaded to %WORK_DIR%
 goto :download_done
-:already_downloaded
-echo        Already downloaded - skipping
+
+:zip_update
+REM -- Already downloaded (no git): re-download ZIP to update --
+echo        Checking for updates (ZIP)...
+curl -L -o "%TEMP%\dealsiteplus.zip" "%ZIP_URL%" 2>nul
+if errorlevel 1 (
+    echo        [!] Update check failed - using existing files
+    goto :download_done
+)
+echo        Updating files...
+powershell -Command "Expand-Archive -Path '%TEMP%\dealsiteplus.zip' -DestinationPath '%TEMP%\dealsiteplus_tmp' -Force" 2>nul
+if errorlevel 1 (
+    echo        [!] Extract failed - using existing files
+    del "%TEMP%\dealsiteplus.zip" >nul 2>&1
+    goto :download_done
+)
+REM -- Copy app files only (preserve .env and output) --
+xcopy "%TEMP%\dealsiteplus_tmp\tallguy_productivity_for_others-claude-adapt-deal-site-plus-FBPym\app\*" "%WORK_DIR%\app\" /E /Y /Q >nul
+xcopy "%TEMP%\dealsiteplus_tmp\tallguy_productivity_for_others-claude-adapt-deal-site-plus-FBPym\setup_and_run.bat" "%WORK_DIR%\" /Y /Q >nul 2>&1
+rd /s /q "%TEMP%\dealsiteplus_tmp" >nul 2>&1
+del "%TEMP%\dealsiteplus.zip" >nul 2>&1
+echo        Updated!
+
 :download_done
 cd /d "%WORK_DIR%"
 
