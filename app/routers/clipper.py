@@ -330,11 +330,39 @@ async def get_classification(session_id: str):
 
     articles_map = {a.info.id: a for a in session.articles_with_content}
 
+    # 디버그: ID 매칭 로그
+    all_cls_ids = set()
+    for cat in session.classification.categories:
+        all_cls_ids.update(cat.articles)
+        for sub in cat.subcategories:
+            all_cls_ids.update(sub.articles)
+            for si in sub.sub_items:
+                all_cls_ids.update(si.articles)
+
+    matched = all_cls_ids & set(articles_map.keys())
+    unmatched = all_cls_ids - set(articles_map.keys())
+    if unmatched:
+        logger.warning(
+            f"Classification ID mismatch: {len(unmatched)} unmatched out of {len(all_cls_ids)}. "
+            f"Unmatched IDs (sample): {list(unmatched)[:5]}. "
+            f"Available IDs (sample): {list(articles_map.keys())[:5]}"
+        )
+
     def article_detail(aid: str):
         a = articles_map.get(aid)
         if not a:
-            return None
-        # Build a short summary: first 150 chars of content
+            # 부분 매칭 시도: ID가 앞뒤 공백이나 유사 형태일 수 있음
+            aid_stripped = aid.strip()
+            if aid_stripped != aid:
+                a = articles_map.get(aid_stripped)
+            if not a:
+                # URL에서 추출한 숫자 ID로 재시도
+                for key, val in articles_map.items():
+                    if key.strip() == aid_stripped:
+                        a = val
+                        break
+            if not a:
+                return None
         summary = a.info.summary or ""
         if not summary and a.content:
             summary = a.content[:200].replace("\n", " ").strip()
@@ -349,26 +377,35 @@ async def get_classification(session_id: str):
         }
 
     tree = []
+    total_articles = 0
     for cat in session.classification.categories:
+        cat_articles = [d for aid in cat.articles if (d := article_detail(aid))]
         cat_data = {
             "name": cat.name,
-            "articles": [article_detail(aid) for aid in cat.articles if article_detail(aid)],
+            "articles": cat_articles,
             "subcategories": [],
         }
+        total_articles += len(cat_articles)
         for sub in cat.subcategories:
+            sub_articles = [d for aid in sub.articles if (d := article_detail(aid))]
             sub_data = {
                 "name": sub.name,
-                "articles": [article_detail(aid) for aid in sub.articles if article_detail(aid)],
+                "articles": sub_articles,
                 "sub_items": [],
             }
+            total_articles += len(sub_articles)
             for si in sub.sub_items:
+                si_articles = [d for aid in si.articles if (d := article_detail(aid))]
                 si_data = {
                     "name": si.name,
-                    "articles": [article_detail(aid) for aid in si.articles if article_detail(aid)],
+                    "articles": si_articles,
                 }
+                total_articles += len(si_articles)
                 sub_data["sub_items"].append(si_data)
             cat_data["subcategories"].append(sub_data)
         tree.append(cat_data)
+
+    logger.info(f"Classification tree: {total_articles} articles resolved out of {len(all_cls_ids)} classified IDs")
 
     return {"status": session.status.value, "tree": tree}
 
