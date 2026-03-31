@@ -268,6 +268,7 @@ article_order는 Deal → Industry → Fundraising 순서로, 각 섹션 내 중
         )
 
         text = response.content[0].text
+        logger.info(f"LLM classification response length: {len(text)} chars")
         json_match = _extract_json(text)
         if json_match:
             data = json.loads(json_match)
@@ -276,20 +277,38 @@ article_order는 Deal → Industry → Fundraising 순서로, 각 섹션 내 중
             if reasoning:
                 for aid, reason in reasoning.items():
                     logger.info(f"Classification: [{aid}] → {reason}")
-            return _parse_classification(data, articles)
+            result = _parse_classification(data, articles)
+            # 결과 검증
+            total_classified = sum(
+                len(cat.articles) + sum(
+                    len(sub.articles) + sum(len(si.articles) for si in sub.sub_items)
+                    for sub in cat.subcategories
+                ) for cat in result.categories
+            )
+            logger.info(f"Classification result: {total_classified} articles classified into categories")
+            if total_classified == 0:
+                logger.error(f"Classification returned 0 articles! LLM response (first 500): {text[:500]}")
+            return result
+        else:
+            logger.error(f"Failed to extract JSON from LLM response. Response (first 500): {text[:500]}")
     except Exception as e:
         logger.error(f"LLM classification failed: {e}", exc_info=True)
 
-    # Fallback: put all in order as-is
+    # Fallback: 모든 기사를 Deal > 기타에 배치
+    all_ids = [a.info.id for a in articles]
+    logger.warning(f"Using fallback classification for {len(all_ids)} articles")
     return ClassifiedOutput(
-        article_order=[a.info.id for a in articles],
+        article_order=all_ids,
         categories=[
             ClassificationCategory(
                 name="Deal",
                 subcategories=[
                     ClassificationSubcategory(name="경영권 인수 및 매각, 투자 유치"),
                     ClassificationSubcategory(name="투자회수"),
-                    ClassificationSubcategory(name="기타"),
+                    ClassificationSubcategory(
+                        name="기타",
+                        articles=all_ids,  # 전부 여기에 배치
+                    ),
                 ],
             ),
             ClassificationCategory(
@@ -316,6 +335,48 @@ def _parse_classification(data: dict, articles: list[ArticleWithContent]) -> Cla
     cls = data.get("classification", {})
     article_order = data.get("article_order", [])
 
+    # LLM이 반환한 ID를 실제 ID와 매칭 (괄호, 공백, 따옴표 제거 등 정규화)
+    valid_ids = {a.info.id for a in articles}
+    # 숫자만 추출한 역매핑 테이블
+    import re as _re
+    id_by_digits = {}
+    for a in articles:
+        digits = _re.sub(r'[^0-9a-fA-F]', '', a.info.id)
+        if digits:
+            id_by_digits[digits] = a.info.id
+
+    def normalize_ids(raw_ids):
+        """LLM이 반환한 ID 리스트를 정규화하여 실제 ID와 매칭."""
+        if not isinstance(raw_ids, list):
+            return []
+        result = []
+        for rid in raw_ids:
+            rid_str = str(rid).strip().strip('"').strip("'")
+            # 1) 그대로 매칭
+            if rid_str in valid_ids:
+                result.append(rid_str)
+                continue
+            # 2) 괄호 제거 [123] → 123
+            cleaned = rid_str.strip('[]').strip()
+            if cleaned in valid_ids:
+                result.append(cleaned)
+                continue
+            # 3) 숫자/hex만 추출해서 매칭
+            digits = _re.sub(r'[^0-9a-fA-F]', '', rid_str)
+            if digits and digits in id_by_digits:
+                result.append(id_by_digits[digits])
+                continue
+            # 4) 부분 문자열 매칭 (ID가 다른 문자열에 포함되어 있는 경우)
+            found = False
+            for vid in valid_ids:
+                if vid in rid_str or rid_str in vid:
+                    result.append(vid)
+                    found = True
+                    break
+            if not found:
+                logger.warning(f"Classification: unmatched article ID '{rid_str}' (original: '{rid}')")
+        return result
+
     deal = cls.get("deal", {})
     industry = cls.get("industry", {})
     fundraising = cls.get("fundraising", [])
@@ -326,15 +387,15 @@ def _parse_classification(data: dict, articles: list[ArticleWithContent]) -> Cla
             subcategories=[
                 ClassificationSubcategory(
                     name="경영권 인수 및 매각, 투자 유치",
-                    articles=deal.get("acquisition_investment", []),
+                    articles=normalize_ids(deal.get("acquisition_investment", [])),
                 ),
                 ClassificationSubcategory(
                     name="투자회수",
-                    articles=deal.get("exit", []),
+                    articles=normalize_ids(deal.get("exit", [])),
                 ),
                 ClassificationSubcategory(
                     name="기타",
-                    articles=deal.get("etc", []),
+                    articles=normalize_ids(deal.get("etc", [])),
                 ),
             ],
         ),
@@ -346,35 +407,52 @@ def _parse_classification(data: dict, articles: list[ArticleWithContent]) -> Cla
                     sub_items=[
                         ClassificationSubItem(
                             name="환경/폐기물",
-                            articles=industry.get("environment_waste", []),
+                            articles=normalize_ids(industry.get("environment_waste", [])),
                         ),
                         ClassificationSubItem(
                             name="건설/부동산",
-                            articles=industry.get("construction_realestate", []),
+                            articles=normalize_ids(industry.get("construction_realestate", [])),
                         ),
                         ClassificationSubItem(
                             name="바이오/헬스케어",
-                            articles=industry.get("bio_healthcare", []),
+                            articles=normalize_ids(industry.get("bio_healthcare", [])),
                         ),
                     ],
                 ),
                 ClassificationSubcategory(
                     name="기타 주요 산업 관련 업계 동향",
-                    articles=industry.get("etc", []),
+                    articles=normalize_ids(industry.get("etc", [])),
                 ),
             ],
         ),
         ClassificationCategory(
             name="Fundraising, LP 이슈 및 GP 선정",
-            articles=fundraising if isinstance(fundraising, list) else [],
+            articles=normalize_ids(fundraising if isinstance(fundraising, list) else []),
         ),
     ]
 
     # Ensure all article IDs are in article_order
     all_ids = {a.info.id for a in articles}
-    ordered_ids = [aid for aid in article_order if aid in all_ids]
+    ordered_ids = normalize_ids(article_order)
     missing = all_ids - set(ordered_ids)
     ordered_ids.extend(missing)
+
+    # 분류에 포함되지 않은 기사는 첫 번째 카테고리에 추가
+    classified_ids = set()
+    for cat in categories:
+        classified_ids.update(cat.articles)
+        for sub in cat.subcategories:
+            classified_ids.update(sub.articles)
+            for si in sub.sub_items:
+                classified_ids.update(si.articles)
+
+    unclassified = all_ids - classified_ids
+    if unclassified:
+        logger.warning(f"Classification: {len(unclassified)} articles not classified, adding to Deal > 기타")
+        # Deal > 기타 subcategory에 추가
+        if categories and categories[0].subcategories:
+            etc_sub = categories[0].subcategories[-1]  # "기타"
+            etc_sub.articles.extend(list(unclassified))
 
     return ClassifiedOutput(categories=categories, article_order=ordered_ids)
 

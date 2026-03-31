@@ -328,13 +328,56 @@ async def get_classification(session_id: str):
     if not session.classification:
         raise HTTPException(400, "Classification not ready")
 
+    import re as _re
     articles_map = {a.info.id: a for a in session.articles_with_content}
+    # 숫자/hex만 추출한 역매핑 (LLM이 괄호/공백 포함해서 반환할 때 대비)
+    id_by_digits = {}
+    for a in session.articles_with_content:
+        digits = _re.sub(r'[^0-9a-fA-F]', '', a.info.id)
+        if digits:
+            id_by_digits[digits] = a.info.id
+
+    def resolve_id(aid: str) -> str | None:
+        """LLM이 반환한 ID를 실제 article ID로 변환."""
+        aid = str(aid).strip().strip('"').strip("'")
+        if aid in articles_map:
+            return aid
+        cleaned = aid.strip('[]').strip()
+        if cleaned in articles_map:
+            return cleaned
+        digits = _re.sub(r'[^0-9a-fA-F]', '', aid)
+        if digits and digits in id_by_digits:
+            return id_by_digits[digits]
+        for vid in articles_map:
+            if vid in aid or aid in vid:
+                return vid
+        return None
+
+    # 디버그: ID 매칭 로그
+    all_cls_ids = []
+    for cat in session.classification.categories:
+        all_cls_ids.extend(cat.articles)
+        for sub in cat.subcategories:
+            all_cls_ids.extend(sub.articles)
+            for si in sub.sub_items:
+                all_cls_ids.extend(si.articles)
+
+    resolved = [resolve_id(aid) for aid in all_cls_ids]
+    matched_count = sum(1 for r in resolved if r)
+    unmatched_raw = [aid for aid, r in zip(all_cls_ids, resolved) if not r]
+    if unmatched_raw:
+        logger.warning(
+            f"Classification ID mismatch: {len(unmatched_raw)}/{len(all_cls_ids)} unmatched. "
+            f"Unmatched: {unmatched_raw[:5]}. "
+            f"Available: {list(articles_map.keys())[:5]}"
+        )
+    logger.info(f"Classification ID resolve: {matched_count}/{len(all_cls_ids)} matched")
 
     def article_detail(aid: str):
-        a = articles_map.get(aid)
-        if not a:
+        real_id = resolve_id(aid)
+        if not real_id:
             return None
-        # Build a short summary: first 150 chars of content
+        a = articles_map[real_id]
         summary = a.info.summary or ""
         if not summary and a.content:
             summary = a.content[:200].replace("\n", " ").strip()
@@ -349,28 +392,81 @@ async def get_classification(session_id: str):
         }
 
     tree = []
+    total_articles = 0
     for cat in session.classification.categories:
+        cat_articles = [d for aid in cat.articles if (d := article_detail(aid))]
         cat_data = {
             "name": cat.name,
-            "articles": [article_detail(aid) for aid in cat.articles if article_detail(aid)],
+            "articles": cat_articles,
             "subcategories": [],
         }
+        total_articles += len(cat_articles)
         for sub in cat.subcategories:
+            sub_articles = [d for aid in sub.articles if (d := article_detail(aid))]
             sub_data = {
                 "name": sub.name,
-                "articles": [article_detail(aid) for aid in sub.articles if article_detail(aid)],
+                "articles": sub_articles,
                 "sub_items": [],
             }
+            total_articles += len(sub_articles)
             for si in sub.sub_items:
+                si_articles = [d for aid in si.articles if (d := article_detail(aid))]
                 si_data = {
                     "name": si.name,
-                    "articles": [article_detail(aid) for aid in si.articles if article_detail(aid)],
+                    "articles": si_articles,
                 }
+                total_articles += len(si_articles)
                 sub_data["sub_items"].append(si_data)
             cat_data["subcategories"].append(sub_data)
         tree.append(cat_data)
 
-    return {"status": session.status.value, "tree": tree}
+    logger.info(f"Classification tree: {total_articles} articles resolved out of {len(all_cls_ids)} classified IDs")
+
+    # 안전장치: 분류된 기사가 0개면 모든 기사를 첫 번째 카테고리에 직접 배치
+    if total_articles == 0 and session.articles_with_content:
+        logger.warning(f"No articles in classification tree! Injecting all {len(session.articles_with_content)} articles")
+        all_article_details = []
+        for a in session.articles_with_content:
+            summary = a.info.summary or ""
+            if not summary and a.content:
+                summary = a.content[:200].replace("\n", " ").strip()
+                if len(a.content) > 200:
+                    summary += "..."
+            all_article_details.append({
+                "id": a.info.id,
+                "title": a.info.title,
+                "summary": summary,
+                "url": a.info.url,
+                "category": a.info.category,
+            })
+        total_articles = len(all_article_details)
+
+        # 기존 트리 구조가 있으면 첫 카테고리에 넣기
+        if tree:
+            # subcategory가 있으면 마지막 서브카테고리(기타)에
+            if tree[0].get("subcategories"):
+                target_sub = tree[0]["subcategories"][-1]
+                if target_sub.get("sub_items"):
+                    target_sub["sub_items"][-1]["articles"] = all_article_details
+                else:
+                    target_sub["articles"] = all_article_details
+            else:
+                tree[0]["articles"] = all_article_details
+        else:
+            tree = [{"name": "전체 기사", "articles": all_article_details, "subcategories": []}]
+
+    return {
+        "status": session.status.value,
+        "tree": tree,
+        "debug": {
+            "classified_ids_total": len(all_cls_ids),
+            "matched": matched_count,
+            "unmatched_sample": unmatched_raw[:10],
+            "available_ids_sample": list(articles_map.keys())[:10],
+            "articles_with_content_count": len(session.articles_with_content),
+            "total_in_tree": total_articles,
+        }
+    }
 
 
 class ConfirmIndexRequest(BaseModel):
