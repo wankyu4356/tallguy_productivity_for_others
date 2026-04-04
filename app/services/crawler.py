@@ -40,6 +40,7 @@ SECTION_CODES = [
     ("Investors - PEF/VC",    "016069"),
     ("Industry - 건설/부동산",  "025073"),
     ("Industry - 제약/바이오",  "025074"),
+    ("Stock",                  "025116"),
 ]
 
 

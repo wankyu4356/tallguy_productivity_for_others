@@ -1,4 +1,5 @@
 import json
+import time
 import anthropic
 
 from app.config import settings
@@ -22,7 +23,8 @@ CLASSIFICATION_TAXONOMY = """[딜사이트플러스]
       - 건설/부동산
       - 바이오/헬스케어
    B. 기타 주요 산업 관련 업계 동향
-3. Fundraising, LP 이슈 및 GP 선정"""
+3. Stock (주식/증권 시장)
+4. Fundraising, LP 이슈 및 GP 선정"""
 
 RECOMMEND_SYSTEM_PROMPT = """당신은 한국 금융/투자 업계의 뉴스 분석 전문가입니다.
 사모펀드(PE) 투자 전문가의 시각에서 기사의 유의미성을 판단합니다.
@@ -30,6 +32,7 @@ RECOMMEND_SYSTEM_PROMPT = """당신은 한국 금융/투자 업계의 뉴스 분
 다음 기준으로 기사를 추천해주세요:
 - Deal 관련: M&A, 투자 유치, 투자회수, IPO, 구조조정 등 거래 관련
 - Industry: PE 포트폴리오와 관련된 산업 동향 (환경/폐기물, 건설/부동산, 바이오/헬스케어)
+- Stock: 주식/증권 시장 동향, 주가 변동, 수급, 주주환원 등
 - Fundraising: 펀드레이징, LP 이슈, GP 선정 관련
 - 일반적인 시장 동향이나 개별 기업 실적 기사는 제외
 
@@ -194,7 +197,18 @@ async def classify_articles(articles: list[ArticleWithContent]) -> ClassifiedOut
   ✅ "반도체 업황 회복세" → industry_etc
   ✅ "유통업계 구조조정" → industry_etc
 
-### 규칙 8: 펀드레이징/LP/GP → Fundraising, LP 이슈 및 GP 선정 (fundraising)
+### 규칙 8: 주식/증권 시장 → Stock (stock)
+대상: 주식 시장 동향, 증권 시장, 주가 변동, 상장사 주가 이슈, 블록딜(주식 대량매매 관점),
+     공매도, 자사주 매입/소각, 배당, 주주환원, 증시 전망, 코스피/코스닥 지수,
+     외국인/기관 수급, 테마주, 주식 관련 규제/정책
+예시:
+  ✅ "코스피 3000 돌파 전망" → stock
+  ✅ "외국인 순매수 확대" → stock
+  ✅ "○○기업 자사주 매입 결정" → stock
+  ✅ "공매도 재개 영향 분석" → stock
+  ⚠️ 단, IPO/상장 자체는 exit, PE의 블록딜 Exit은 exit로 분류
+
+### 규칙 9: 펀드레이징/LP/GP → Fundraising, LP 이슈 및 GP 선정 (fundraising)
 대상: 블라인드펀드 결성, 프로젝트펀드, LP(유한책임사원) 출자, GP(무한책임사원) 선정,
      국민연금/공제회 등 기관투자자 출자, 펀드 클로징, 앵커 LP 확보,
      GP 탈락/선정, 운용사 설립/인가
@@ -249,6 +263,7 @@ async def classify_articles(articles: list[ArticleWithContent]) -> ClassifiedOut
       "bio_healthcare": ["기사ID", ...],
       "etc": ["기사ID", ...]
     }},
+    "stock": ["기사ID", ...],
     "fundraising": ["기사ID", ...]
   }},
   "article_order": ["기사ID1", "기사ID2", ...],
@@ -257,26 +272,55 @@ async def classify_articles(articles: list[ArticleWithContent]) -> ClassifiedOut
   }}
 }}
 
-article_order는 Deal → Industry → Fundraising 순서로, 각 섹션 내 중요도 내림차순."""
+article_order는 Deal → Industry → Stock → Fundraising 순서로, 각 섹션 내 중요도 내림차순."""
 
-    try:
-        response = client.messages.create(
-            model=settings.CLAUDE_MODEL,
-            max_tokens=8192,
-            system=CLASSIFY_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}],
-        )
+    # API 키 검증
+    if not settings.ANTHROPIC_API_KEY:
+        logger.error("ANTHROPIC_API_KEY가 설정되지 않았습니다! .env 파일을 확인하세요.")
+        return _fallback_classification(articles, reason="API 키 미설정")
 
-        text = response.content[0].text
-        logger.info(f"LLM classification response length: {len(text)} chars")
-        json_match = _extract_json(text)
-        if json_match:
+    # 최대 2회 재시도 (네트워크 오류, 응답 잘림 등 대비)
+    last_error = None
+    for attempt in range(3):
+        try:
+            if attempt > 0:
+                wait = 2 ** attempt
+                logger.info(f"Classification retry {attempt}/2, waiting {wait}s...")
+                time.sleep(wait)
+
+            response = client.messages.create(
+                model=settings.CLAUDE_MODEL,
+                max_tokens=16384,
+                system=CLASSIFY_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+            )
+
+            text = response.content[0].text
+            stop_reason = response.stop_reason
+            logger.info(f"LLM classification response: {len(text)} chars, stop_reason={stop_reason}, model={settings.CLAUDE_MODEL}")
+
+            # 응답이 max_tokens로 잘렸을 수 있음
+            if stop_reason == "max_tokens":
+                logger.warning(f"Classification response truncated (max_tokens reached)! Retrying with shorter articles...")
+                # 기사 본문을 줄여서 재시도하는 건 다음 attempt에서 처리
+                last_error = "Response truncated (max_tokens)"
+                continue
+
+            json_match = _extract_json(text)
+            if not json_match:
+                logger.error(f"Failed to extract JSON from LLM response. Response (first 1000): {text[:1000]}")
+                last_error = "JSON extraction failed"
+                continue
+
             data = json.loads(json_match)
             # Log classification reasoning for debugging
             reasoning = data.get("classification_reasoning", {})
             if reasoning:
-                for aid, reason in reasoning.items():
+                for aid, reason in list(reasoning.items())[:5]:  # 처음 5개만 로그
                     logger.info(f"Classification: [{aid}] → {reason}")
+                if len(reasoning) > 5:
+                    logger.info(f"  ... and {len(reasoning) - 5} more articles classified")
+
             result = _parse_classification(data, articles)
             # 결과 검증
             total_classified = sum(
@@ -288,17 +332,39 @@ article_order는 Deal → Industry → Fundraising 순서로, 각 섹션 내 중
             logger.info(f"Classification result: {total_classified} articles classified into categories")
             if total_classified == 0:
                 logger.error(f"Classification returned 0 articles! LLM response (first 500): {text[:500]}")
-            return result
-        else:
-            logger.error(f"Failed to extract JSON from LLM response. Response (first 500): {text[:500]}")
-    except Exception as e:
-        logger.error(f"LLM classification failed: {e}", exc_info=True)
+                last_error = "0 articles classified from response"
+                continue
 
-    # Fallback: 모든 기사를 Deal > 기타에 배치
+            result.is_fallback = False
+            return result
+
+        except anthropic.AuthenticationError as e:
+            logger.error(f"Anthropic API 인증 실패: {e}. API 키를 확인하세요.")
+            return _fallback_classification(articles, reason=f"API 인증 실패: {e}")
+        except anthropic.RateLimitError as e:
+            logger.warning(f"Rate limit hit: {e}")
+            last_error = f"Rate limit: {e}"
+            continue
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing failed: {e}")
+            last_error = f"JSON parse error: {e}"
+            continue
+        except Exception as e:
+            logger.error(f"LLM classification failed (attempt {attempt}): {e}", exc_info=True)
+            last_error = str(e)
+            continue
+
+    return _fallback_classification(articles, reason=last_error or "Unknown error after 3 attempts")
+
+
+def _fallback_classification(articles: list[ArticleWithContent], reason: str = "") -> ClassifiedOutput:
+    """Fallback: 모든 기사를 Deal > 기타에 배치. 실패 원인을 기록."""
     all_ids = [a.info.id for a in articles]
-    logger.warning(f"Using fallback classification for {len(all_ids)} articles")
+    logger.warning(f"Using FALLBACK classification for {len(all_ids)} articles. Reason: {reason}")
     return ClassifiedOutput(
         article_order=all_ids,
+        is_fallback=True,
+        fallback_reason=reason,
         categories=[
             ClassificationCategory(
                 name="Deal",
@@ -307,7 +373,7 @@ article_order는 Deal → Industry → Fundraising 순서로, 각 섹션 내 중
                     ClassificationSubcategory(name="투자회수"),
                     ClassificationSubcategory(
                         name="기타",
-                        articles=all_ids,  # 전부 여기에 배치
+                        articles=all_ids,
                     ),
                 ],
             ),
@@ -325,6 +391,7 @@ article_order는 Deal → Industry → Fundraising 순서로, 각 섹션 내 중
                     ClassificationSubcategory(name="기타 주요 산업 관련 업계 동향"),
                 ],
             ),
+            ClassificationCategory(name="Stock"),
             ClassificationCategory(name="Fundraising, LP 이슈 및 GP 선정"),
         ],
     )
@@ -379,6 +446,7 @@ def _parse_classification(data: dict, articles: list[ArticleWithContent]) -> Cla
 
     deal = cls.get("deal", {})
     industry = cls.get("industry", {})
+    stock = cls.get("stock", [])
     fundraising = cls.get("fundraising", [])
 
     categories = [
@@ -426,6 +494,10 @@ def _parse_classification(data: dict, articles: list[ArticleWithContent]) -> Cla
             ],
         ),
         ClassificationCategory(
+            name="Stock",
+            articles=normalize_ids(stock if isinstance(stock, list) else []),
+        ),
+        ClassificationCategory(
             name="Fundraising, LP 이슈 및 GP 선정",
             articles=normalize_ids(fundraising if isinstance(fundraising, list) else []),
         ),
@@ -458,15 +530,58 @@ def _parse_classification(data: dict, articles: list[ArticleWithContent]) -> Cla
 
 
 def _extract_json(text: str) -> str | None:
-    """Extract JSON from LLM response text."""
-    # Try to find JSON block
+    """Extract JSON from LLM response text. Tries multiple strategies."""
     import re
-    # Look for ```json ... ``` blocks
+
+    # Strategy 1: ```json ... ``` blocks
     match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL)
     if match:
-        return match.group(1).strip()
-    # Try to find raw JSON object
+        candidate = match.group(1).strip()
+        try:
+            json.loads(candidate)
+            return candidate
+        except json.JSONDecodeError:
+            logger.debug("JSON in code block is invalid, trying other strategies")
+
+    # Strategy 2: Find the outermost balanced { ... } using bracket counting
+    start = text.find('{')
+    if start != -1:
+        depth = 0
+        in_string = False
+        escape_next = False
+        for i in range(start, len(text)):
+            c = text[i]
+            if escape_next:
+                escape_next = False
+                continue
+            if c == '\\' and in_string:
+                escape_next = True
+                continue
+            if c == '"' and not escape_next:
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if c == '{':
+                depth += 1
+            elif c == '}':
+                depth -= 1
+                if depth == 0:
+                    candidate = text[start:i+1]
+                    try:
+                        json.loads(candidate)
+                        return candidate
+                    except json.JSONDecodeError:
+                        logger.debug(f"Balanced braces found but invalid JSON at position {start}-{i}")
+                        break
+
+    # Strategy 3: Greedy regex fallback
     match = re.search(r'\{.*\}', text, re.DOTALL)
     if match:
-        return match.group(0)
+        try:
+            json.loads(match.group(0))
+            return match.group(0)
+        except json.JSONDecodeError:
+            logger.debug("Greedy regex JSON extraction failed")
+
     return None
