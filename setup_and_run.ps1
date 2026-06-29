@@ -157,17 +157,31 @@ CLEANUP_HOURS=24
 # ── 6. Run server ──
 Write-Host ""
 Write-Host "[6/6] Starting server..." -ForegroundColor Yellow
+
+# Find a free port starting from 8000
+$serverPort = 8000
+while ($serverPort -lt 8100) {
+    $conn = Get-NetTCPConnection -LocalPort $serverPort -ErrorAction SilentlyContinue
+    if (-not $conn) { break }
+    Write-Host "       Port $serverPort in use, trying next..." -ForegroundColor Yellow
+    $serverPort++
+}
+if ($serverPort -ge 8100) {
+    Write-Host "[ERROR] No free port found (8000-8099)" -ForegroundColor Red
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  Open http://localhost:8000 in browser" -ForegroundColor Cyan
+Write-Host "  Server: http://localhost:$serverPort" -ForegroundColor Cyan
 Write-Host "  Press Ctrl+C to stop" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Auto-open browser
-Start-Process "http://localhost:8000"
+Start-Process "http://localhost:$serverPort"
 
-& $pythonCmd -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+& $pythonCmd -m uvicorn app.main:app --host 0.0.0.0 --port $serverPort
 
 Write-Host ""
 Write-Host "Server stopped." -ForegroundColor Yellow

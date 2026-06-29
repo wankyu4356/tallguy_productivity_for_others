@@ -594,8 +594,7 @@ async def review_page(request: Request, session_id: str):
     # Build recommendation map
     rec_map = {r.article_id: r for r in session.recommendations}
 
-    return templates.TemplateResponse("review.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "review.html", {
         "session": session,
         "categories": categories,
         "rec_map": rec_map,
@@ -609,8 +608,7 @@ async def review_index_page(request: Request, session_id: str):
     if not session:
         raise HTTPException(404, "Session not found")
 
-    return templates.TemplateResponse("review_index.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "review_index.html", {
         "session": session,
     })
 
@@ -622,8 +620,7 @@ async def progress_page(request: Request, session_id: str):
     if not session:
         raise HTTPException(404, "Session not found")
 
-    return templates.TemplateResponse("progress.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "progress.html", {
         "session": session,
     })
 
@@ -635,7 +632,6 @@ async def result_page(request: Request, session_id: str):
     if not session:
         raise HTTPException(404, "Session not found")
 
-    return templates.TemplateResponse("result.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "result.html", {
         "session": session,
     })

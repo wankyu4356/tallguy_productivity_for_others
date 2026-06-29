@@ -256,14 +256,30 @@ goto :env_validate
 REM == 6. Run ==
 echo [6/6] Starting server...
 echo.
+
+REM -- Find a free port starting from 8000 --
+set "SERVER_PORT=8000"
+:find_port
+netstat -an | findstr ":%SERVER_PORT% " | findstr "LISTENING" >nul 2>&1
+if not errorlevel 1 (
+    echo        Port %SERVER_PORT% in use, trying next...
+    set /a SERVER_PORT+=1
+    if !SERVER_PORT! GEQ 8100 (
+        echo [ERROR] No free port found between 8000-8099
+        pause
+        exit /b 1
+    )
+    goto :find_port
+)
+
 echo ============================================
 echo   Browser will open automatically.
-echo   If not, go to http://localhost:8000
+echo   Server: http://localhost:%SERVER_PORT%
 echo   To stop: close this window or Ctrl+C
 echo ============================================
 echo.
-start http://localhost:8000
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+start http://localhost:%SERVER_PORT%
+python -m uvicorn app.main:app --host 0.0.0.0 --port %SERVER_PORT%
 echo.
 echo Server stopped.
 pause
