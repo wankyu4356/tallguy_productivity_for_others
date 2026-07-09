@@ -19,7 +19,7 @@ def generate_docx(
     """Generate the DOCX table of contents matching the required template.
 
     Template:
-    [더벨]
+    [딜사이트플러스]
     1. Deal
        A. 경영권 인수 및 매각, 투자 유치
           (1) article title
@@ -33,11 +33,13 @@ def generate_docx(
             (1) article title
           - 건설/부동산
             (1) article title
-          - 바이오/헬스케어
+          - 제약/바이오/헬스케어
             (1) article title
        B. 기타 주요 산업 관련 업계 동향
           (1) article title
     3. Fundraising, LP 이슈 및 GP 선정
+       (1) article title
+    4. Stock (상장주식/증시 2차 시장)
        (1) article title
     """
     articles_map = {a.info.id: a for a in articles}

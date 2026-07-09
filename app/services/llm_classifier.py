@@ -21,19 +21,19 @@ CLASSIFICATION_TAXONOMY = """[딜사이트플러스]
    A. E&F 포트폴리오 관련 산업 업계 동향
       - 환경/폐기물
       - 건설/부동산
-      - 바이오/헬스케어
+      - 제약/바이오/헬스케어
    B. 기타 주요 산업 관련 업계 동향
-3. Stock (주식/증권 시장)
-4. Fundraising, LP 이슈 및 GP 선정"""
+3. Fundraising, LP 이슈 및 GP 선정
+4. Stock (상장주식/증시 2차 시장)"""
 
 RECOMMEND_SYSTEM_PROMPT = """당신은 한국 금융/투자 업계의 뉴스 분석 전문가입니다.
 사모펀드(PE) 투자 전문가의 시각에서 기사의 유의미성을 판단합니다.
 
 다음 기준으로 기사를 추천해주세요:
 - Deal 관련: M&A, 투자 유치, 투자회수, IPO, 구조조정 등 거래 관련
-- Industry: PE 포트폴리오와 관련된 산업 동향 (환경/폐기물, 건설/부동산, 바이오/헬스케어)
-- Stock: 주식/증권 시장 동향, 주가 변동, 수급, 주주환원 등
+- Industry: PE 포트폴리오와 관련된 산업 동향 (환경/폐기물, 건설/부동산, 제약/바이오/헬스케어)
 - Fundraising: 펀드레이징, LP 이슈, GP 선정 관련
+- Stock: 상장주식 2차 시장/증시 동향 (지수, 수급, 공매도, 자사주, 배당/주주환원 등)
 - 일반적인 시장 동향이나 개별 기업 실적 기사는 제외
 
 JSON 형식으로 응답해주세요."""
@@ -183,7 +183,7 @@ async def classify_articles(articles: list[ArticleWithContent]) -> ClassifiedOut
   ✅ "○○건설 수주 실적" → construction_realestate
   ✅ "재건축 규제 완화" → construction_realestate
 
-### 규칙 6: 바이오/헬스케어/제약 → Industry > E&F 포트폴리오 > 바이오/헬스케어 (bio_healthcare)
+### 규칙 6: 제약/바이오/헬스케어 → Industry > E&F 포트폴리오 > 제약/바이오/헬스케어 (bio_healthcare)
 대상: 제약사, 바이오텍, 헬스케어, 의료기기, 신약 개발, 기술이전(L/O),
      임상시험, FDA/식약처 승인, 병원/의료 서비스
 예시:
@@ -197,18 +197,7 @@ async def classify_articles(articles: list[ArticleWithContent]) -> ClassifiedOut
   ✅ "반도체 업황 회복세" → industry_etc
   ✅ "유통업계 구조조정" → industry_etc
 
-### 규칙 8: 주식/증권 시장 → Stock (stock)
-대상: 주식 시장 동향, 증권 시장, 주가 변동, 상장사 주가 이슈, 블록딜(주식 대량매매 관점),
-     공매도, 자사주 매입/소각, 배당, 주주환원, 증시 전망, 코스피/코스닥 지수,
-     외국인/기관 수급, 테마주, 주식 관련 규제/정책
-예시:
-  ✅ "코스피 3000 돌파 전망" → stock
-  ✅ "외국인 순매수 확대" → stock
-  ✅ "○○기업 자사주 매입 결정" → stock
-  ✅ "공매도 재개 영향 분석" → stock
-  ⚠️ 단, IPO/상장 자체는 exit, PE의 블록딜 Exit은 exit로 분류
-
-### 규칙 9: 펀드레이징/LP/GP → Fundraising, LP 이슈 및 GP 선정 (fundraising)
+### 규칙 8: 펀드레이징/LP/GP → Fundraising, LP 이슈 및 GP 선정 (fundraising)
 대상: 블라인드펀드 결성, 프로젝트펀드, LP(유한책임사원) 출자, GP(무한책임사원) 선정,
      국민연금/공제회 등 기관투자자 출자, 펀드 클로징, 앵커 LP 확보,
      GP 탈락/선정, 운용사 설립/인가
@@ -216,6 +205,21 @@ async def classify_articles(articles: list[ArticleWithContent]) -> ClassifiedOut
   ✅ "○○PE 1조원 블라인드펀드 결성" → fundraising
   ✅ "국민연금 PE 출자 확대" → fundraising
   ✅ "신규 GP 운용사 설립 러시" → fundraising
+
+### 규칙 9: 상장주식 2차 시장/증시 → Stock (stock) ※ 최하위 우선순위, "잔여" 버킷
+경계: **상장주식의 유통시장(2차 시장)·증시 자체가 기사의 핵심**일 때만 stock.
+     특정 거래(딜)·발행·거래 주체(PE/대주주/기업)의 행위가 핵심이면 규칙 1~3(Deal)이 우선한다.
+대상: 코스피/코스닥 지수, 증시 전망, 외국인/기관 수급, 공매도, 자사주 매입/소각,
+     배당/주주환원 정책, 테마주, 주식 관련 규제/정책, 개별 상장사 주가 급등락(딜 무관)
+예시:
+  ✅ "코스피 3000 돌파 전망" → stock (증시 지수)
+  ✅ "외국인 순매수 확대" → stock (수급)
+  ✅ "○○기업 자사주 매입·소각 결정" → stock (주주환원)
+  ✅ "공매도 재개 영향 분석" → stock (증시 정책)
+  ❌ IPO/상장 자체 → exit (규칙 2)
+  ❌ CB/BW/유상증자 발행(자금조달) → acquisition_investment (규칙 1)
+  ❌ PE·대주주의 블록딜/보호예수 해제·오버행(투자회수·지분정리 관점) → exit (규칙 2)
+  ⚠️ Deal과 헷갈리면 항상 Deal 우선. Stock은 "딜로 볼 수 없는 순수 증시 기사"만 담는다.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## 주의사항 (자주 틀리는 케이스)
@@ -235,6 +239,9 @@ async def classify_articles(articles: list[ArticleWithContent]) -> ClassifiedOut
 6. **블록딜**: 투자자가 보유 지분을 장내에서 대량 매각하는 것.
    - PE/VC가 Exit 목적이면 → exit
    - 대주주의 지분 정리/경영권 변동이면 → acquisition_investment
+   - 거래 주체가 불분명하고 단순 장내 수급/주가 영향이 핵심이면 → stock
+7. **Stock vs Deal 경계**: Stock은 "딜로 볼 수 없는 순수 증시·수급·주가" 기사만.
+   자금조달(CB/BW/유상증자), IPO, PE·대주주의 지분거래는 딜 무관해 보여도 Deal이 우선이다.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## 정렬 규칙
@@ -263,8 +270,8 @@ async def classify_articles(articles: list[ArticleWithContent]) -> ClassifiedOut
       "bio_healthcare": ["기사ID", ...],
       "etc": ["기사ID", ...]
     }},
-    "stock": ["기사ID", ...],
-    "fundraising": ["기사ID", ...]
+    "fundraising": ["기사ID", ...],
+    "stock": ["기사ID", ...]
   }},
   "article_order": ["기사ID1", "기사ID2", ...],
   "classification_reasoning": {{
@@ -272,7 +279,7 @@ async def classify_articles(articles: list[ArticleWithContent]) -> ClassifiedOut
   }}
 }}
 
-article_order는 Deal → Industry → Stock → Fundraising 순서로, 각 섹션 내 중요도 내림차순."""
+article_order는 Deal → Industry → Fundraising → Stock 순서로, 각 섹션 내 중요도 내림차순."""
 
     # API 키 검증
     if not settings.ANTHROPIC_API_KEY:
@@ -385,14 +392,14 @@ def _fallback_classification(articles: list[ArticleWithContent], reason: str = "
                         sub_items=[
                             ClassificationSubItem(name="환경/폐기물"),
                             ClassificationSubItem(name="건설/부동산"),
-                            ClassificationSubItem(name="바이오/헬스케어"),
+                            ClassificationSubItem(name="제약/바이오/헬스케어"),
                         ],
                     ),
                     ClassificationSubcategory(name="기타 주요 산업 관련 업계 동향"),
                 ],
             ),
-            ClassificationCategory(name="Stock"),
             ClassificationCategory(name="Fundraising, LP 이슈 및 GP 선정"),
+            ClassificationCategory(name="Stock"),
         ],
     )
 
@@ -482,7 +489,7 @@ def _parse_classification(data: dict, articles: list[ArticleWithContent]) -> Cla
                             articles=normalize_ids(industry.get("construction_realestate", [])),
                         ),
                         ClassificationSubItem(
-                            name="바이오/헬스케어",
+                            name="제약/바이오/헬스케어",
                             articles=normalize_ids(industry.get("bio_healthcare", [])),
                         ),
                     ],
@@ -494,12 +501,12 @@ def _parse_classification(data: dict, articles: list[ArticleWithContent]) -> Cla
             ],
         ),
         ClassificationCategory(
-            name="Stock",
-            articles=normalize_ids(stock if isinstance(stock, list) else []),
-        ),
-        ClassificationCategory(
             name="Fundraising, LP 이슈 및 GP 선정",
             articles=normalize_ids(fundraising if isinstance(fundraising, list) else []),
+        ),
+        ClassificationCategory(
+            name="Stock",
+            articles=normalize_ids(stock if isinstance(stock, list) else []),
         ),
     ]
 
