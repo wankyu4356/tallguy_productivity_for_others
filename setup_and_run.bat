@@ -192,7 +192,7 @@ echo.
 echo DEALSITEPLUS_ID=YOUR_ID_HERE> .env
 echo DEALSITEPLUS_PW=YOUR_PW_HERE>> .env
 echo ANTHROPIC_API_KEY=YOUR_API_KEY_HERE>> .env
-echo CLAUDE_MODEL=claude-sonnet-4-20250514>> .env
+echo CLAUDE_MODEL=claude-sonnet-5>> .env
 echo OUTPUT_DIR=./output>> .env
 echo LOG_LEVEL=INFO>> .env
 echo HOST=0.0.0.0>> .env

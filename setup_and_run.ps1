@@ -130,7 +130,7 @@ DEALSITEPLUS_PW=$dsPw
 
 # Claude API
 ANTHROPIC_API_KEY=$apiKey
-CLAUDE_MODEL=claude-sonnet-4-20250514
+CLAUDE_MODEL=claude-sonnet-5
 
 # App settings
 OUTPUT_DIR=./output

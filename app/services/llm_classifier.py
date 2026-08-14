@@ -92,14 +92,22 @@ async def recommend_articles(
 }}"""
 
     try:
+        # 이 모델은 기본으로 사고(thinking)를 하고 사고 토큰도 max_tokens를 함께 쓴다.
+        # 추천은 분류보다 단순한 작업이라 effort는 낮게, 대신 잘리지 않게 여유를 준다.
         response = client.messages.create(
             model=settings.CLAUDE_MODEL,
-            max_tokens=4096,
+            max_tokens=12000,
             system=RECOMMEND_SYSTEM_PROMPT,
+            output_config={"effort": "low"},
             messages=[{"role": "user", "content": prompt}],
         )
 
-        text = response.content[0].text
+        if response.stop_reason == "refusal":
+            logger.error("추천 요청이 안전 정책으로 거부되었습니다.")
+            raise RuntimeError("모델이 요청을 거부함 (refusal)")
+
+        # 사고 블록이 앞에 올 수 있으므로 text 블록을 골라서 꺼낸다.
+        text = next((b.text for b in response.content if b.type == "text"), "")
         # Extract JSON from response
         json_match = _extract_json(text)
         if json_match:
@@ -122,12 +130,19 @@ async def classify_articles(articles: list[ArticleWithContent]) -> ClassifiedOut
 
     client = _get_client()
 
-    articles_text = "\n---\n".join([
-        f"[{a.info.id}] 제목: {a.info.title}\n출처 섹션(참고용): {a.info.subcategory}\n본문:\n{a.content[:3000]}"
-        for a in articles
-    ])
+    # 프롬프트는 한 번만 조립하고, 재시도할 때는 기사 본문 길이만 줄여서 치환한다.
+    # (예전에는 루프 밖에서 한 번만 만들어서, 응답이 잘려도 매번 같은 크기로 재시도했다.)
+    ARTICLES_PLACEHOLDER = "__ARTICLES_TEXT__"
 
-    prompt = f"""다음 기사들을 아래 분류 체계에 따라 분류해주세요.
+    def build_articles_text(content_limit: int) -> str:
+        return "\n---\n".join([
+            f"[{a.info.id}] 제목: {a.info.title}\n출처 섹션(참고용): {a.info.subcategory}\n본문:\n{a.content[:content_limit]}"
+            for a in articles
+        ])
+
+    articles_text = ARTICLES_PLACEHOLDER
+
+    prompt_template = f"""다음 기사들을 아래 분류 체계에 따라 분류해주세요.
 
 {CLASSIFICATION_TAXONOMY}
 
@@ -287,6 +302,9 @@ article_order는 Deal → Industry → Fundraising → Stock 순서로, 각 섹�
         return _fallback_classification(articles, reason="API 키 미설정")
 
     # 최대 2회 재시도 (네트워크 오류, 응답 잘림 등 대비)
+    # 재시도할수록 기사 본문을 짧게 잘라서 응답이 max_tokens에 걸릴 확률을 낮춘다.
+    CONTENT_LIMITS = [3000, 1500, 700]
+
     last_error = None
     for attempt in range(3):
         try:
@@ -295,21 +313,40 @@ article_order는 Deal → Industry → Fundraising → Stock 순서로, 각 섹�
                 logger.info(f"Classification retry {attempt}/2, waiting {wait}s...")
                 time.sleep(wait)
 
-            response = client.messages.create(
-                model=settings.CLAUDE_MODEL,
-                max_tokens=16384,
-                system=CLASSIFY_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt}],
+            content_limit = CONTENT_LIMITS[min(attempt, len(CONTENT_LIMITS) - 1)]
+            prompt = prompt_template.replace(
+                ARTICLES_PLACEHOLDER, build_articles_text(content_limit)
             )
 
-            text = response.content[0].text
-            stop_reason = response.stop_reason
-            logger.info(f"LLM classification response: {len(text)} chars, stop_reason={stop_reason}, model={settings.CLAUDE_MODEL}")
+            # max_tokens가 16K를 넘으면 비스트리밍 요청은 SDK HTTP 타임아웃에 걸린다.
+            # 또한 이 모델은 기본으로 사고(thinking)를 하며, 사고 토큰도 max_tokens를
+            # 함께 쓰기 때문에 응답이 잘리지 않도록 넉넉히 잡는다.
+            with client.messages.stream(
+                model=settings.CLAUDE_MODEL,
+                max_tokens=32000,
+                system=CLASSIFY_SYSTEM_PROMPT,
+                output_config={"effort": "high"},
+                messages=[{"role": "user", "content": prompt}],
+            ) as stream:
+                response = stream.get_final_message()
 
-            # 응답이 max_tokens로 잘렸을 수 있음
+            stop_reason = response.stop_reason
+
+            # 안전 정책상 거부된 경우 — 내용을 읽기 전에 먼저 확인해야 한다.
+            if stop_reason == "refusal":
+                logger.error("분류 요청이 안전 정책으로 거부되었습니다.")
+                return _fallback_classification(articles, reason="모델이 요청을 거부함 (refusal)")
+
+            # 사고 블록이 앞에 올 수 있으므로 text 블록을 골라서 꺼낸다.
+            text = next((b.text for b in response.content if b.type == "text"), "")
+            logger.info(
+                f"LLM classification response: {len(text)} chars, stop_reason={stop_reason}, "
+                f"model={settings.CLAUDE_MODEL}, content_limit={content_limit}"
+            )
+
+            # 응답이 max_tokens로 잘렸을 수 있음 → 다음 시도에서 본문을 더 줄인다
             if stop_reason == "max_tokens":
-                logger.warning(f"Classification response truncated (max_tokens reached)! Retrying with shorter articles...")
-                # 기사 본문을 줄여서 재시도하는 건 다음 attempt에서 처리
+                logger.warning("Classification response truncated (max_tokens reached)! Retrying with shorter articles...")
                 last_error = "Response truncated (max_tokens)"
                 continue
 
