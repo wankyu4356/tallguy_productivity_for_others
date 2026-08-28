@@ -38,6 +38,9 @@ SECTION_CODES = [
     ("Deals - Debt/Loan",     "002066"),
     ("Investors - IB",        "016068"),
     ("Investors - PEF/VC",    "016069"),
+    # 사이트 개편으로 옛 Stock(증시) 기사가 Investors > others 로 이동함.
+    # 코드는 dealsiteplus.co.kr 내비게이션에서 직접 확인 (016072 = others).
+    ("Investors - Others",    "016072"),
     ("Industry - 건설/부동산",  "025073"),
     ("Industry - 제약/바이오",  "025074"),
 ]

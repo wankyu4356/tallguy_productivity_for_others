@@ -249,6 +249,9 @@ async def classify_articles(articles: list[ArticleWithContent]) -> ClassifiedOut
 3. **"Investors - IB" 섹션 기사**도 마찬가지:
    - IB 업계 전체 동향/순위 → Deal > 기타
    - 특정 딜의 자문/주관 내용이 핵심이면 → 해당 딜의 성격에 따라 분류
+3-1. **"Investors - Others" 섹션 기사**: 사이트 개편으로 옛 Stock(증시/주식) 기사가
+   이 섹션으로 이동했다. 상당수가 증시·수급·주가·자사주·배당 등 순수 증시 기사이므로
+   본문이 그런 내용이면 → stock. 단, 딜/펀드/산업 내용이면 규칙 1~9 그대로 적용.
 4. **제목에 "인수"가 있어도** 본문을 읽어보면 산업 동향 기사일 수 있습니다. 본문 확인 필수.
 5. **"Deals - PF" 섹션** → 대부분 construction_realestate가 맞지만, PF 관련 금융상품/구조화 기사는 Deal > 기타일 수 있습니다.
 6. **블록딜**: 투자자가 보유 지분을 장내에서 대량 매각하는 것.
