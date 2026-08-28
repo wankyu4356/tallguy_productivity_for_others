@@ -202,7 +202,7 @@
 
 <div class="container">
     <div class="page-head">
-        <h1>오늘의 뉴스 클리핑</h1>
+        <h1>오늘의 <span class="accent">뉴스 클리핑</span></h1>
         <p class="page-sub">기간을 확인하고 수집을 시작하세요.</p>
     </div>
 
@@ -228,9 +228,18 @@
                 기사 수집 시작
             </button>
 
-            <div id="crawl-status" class="status-area" style="display:none;">
-                <div class="spinner"></div>
-                <p id="crawl-status-text">크롤링 준비 중...</p>
+            <div id="crawl-status" class="work-card" style="display:none;">
+                <div class="progress-meta">
+                    <span class="progress-stage" id="crawl-stage">기사 수집 준비 중</span>
+                    <span class="elapsed" id="crawl-elapsed">0초 경과</span>
+                </div>
+                <div class="progress-track"><div class="progress-fill" id="crawl-fill"></div></div>
+                <div class="stage-list" id="crawl-stages">
+                    <div class="stage-item" data-stage="0"><span class="stage-dot"></span><span>딜사이트 접속 및 로그인</span></div>
+                    <div class="stage-item" data-stage="1"><span class="stage-dot"></span><span>카테고리별 기사 목록 수집</span></div>
+                    <div class="stage-item" data-stage="2"><span class="stage-dot"></span><span>기간에 맞는 기사 추리기</span></div>
+                </div>
+                <p class="work-log" id="crawl-status-text">잠시만 기다려 주세요...</p>
             </div>
         </div>
 
@@ -265,7 +274,11 @@
                 {% for sid, s in sessions.items() %}
                 <tr>
                     <td>{{ sid[:8] }}...</td>
-                    <td><span class="badge badge-{{ s.status.value }}">{{ s.status.value }}</span></td>
+                    <td><span class="badge badge-{{ s.status.value }}">{{ {
+                        'idle':'대기', 'crawling':'수집 중', 'crawl_done':'수집 완료',
+                        'recommending':'추천 중', 'recommend_done':'추천 완료', 'selected':'선택 완료',
+                        'generating':'생성 중', 'review_ready':'검수 대기', 'finalizing':'마무리 중',
+                        'done':'완료', 'error':'오류' }.get(s.status.value, s.status.value) }}</span></td>
                     <td>{{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                     <td>{{ s.articles | length }}</td>
                     <td>
@@ -340,7 +353,7 @@
 @keyframes blink-cursor { 0%,100% { opacity:1; } 50% { opacity:0; } }
 .funfact-card.funfact-enter .funfact-category { animation: badge-pop 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.3s both; }
 @keyframes badge-pop { 0% { opacity:0; transform:scale(0.5) translateY(-8px); } 100% { opacity:1; transform:scale(1) translateY(0); } }
-.funfact-theme-0 { background: linear-gradient(135deg, #3182F6, #764ba2); }
+.funfact-theme-0 { background: linear-gradient(135deg, #6537CE, #764ba2); }
 .funfact-theme-1 { background: linear-gradient(135deg, #f093fb, #f5576c); }
 .funfact-theme-2 { background: linear-gradient(135deg, #4facfe, #00f2fe); }
 .funfact-theme-3 { background: linear-gradient(135deg, #43e97b, #38f9d7); }
@@ -413,8 +426,8 @@
     word-break: keep-all;
 }
 .restday-highlight {
-    color: #3182F6; cursor: pointer; position: relative;
-    text-decoration: underline wavy #3182F6;
+    color: #6537CE; cursor: pointer; position: relative;
+    text-decoration: underline wavy #6537CE;
     text-underline-offset: 4px;
     transition: all 0.2s;
 }
@@ -452,7 +465,7 @@
     width: 80px; height: 80px; pointer-events: none;
 }
 .zzz {
-    position: absolute; font-weight: 900; color: #3182F6; opacity: 0;
+    position: absolute; font-weight: 900; color: #6537CE; opacity: 0;
     font-family: 'Comic Sans MS', cursive, sans-serif;
 }
 .zzz-1 { font-size: 14px; right: 10px; top: 40px; animation: zzz-float 3s ease-in-out 0s infinite; }
@@ -507,10 +520,10 @@
 .game-emoji { font-size: 48px; margin-bottom: 8px; animation: emoji-wobble 2s ease-in-out infinite; }
 .game-title { font-size: 24px; font-weight: 800; color: #191F28; margin: 0 0 4px; }
 .game-sub { font-size: 13px; color: #8B95A1; line-height: 1.6; margin: 0 0 16px; }
-.game-sub strong { color: #3182F6; }
+.game-sub strong { color: #6537CE; }
 .game-btn {
     display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 13px 36px;
-    background: linear-gradient(135deg, #3182F6, #8b5cf6); color: white;
+    background: linear-gradient(135deg, #6537CE, #8b5cf6); color: white;
     border: none; border-radius: 30px; font-size: 16px; font-weight: 700;
     cursor: pointer; transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
     box-shadow: 0 4px 20px rgba(99,102,241,0.35);
@@ -531,7 +544,7 @@
 }
 .game-msg.msg-error { color: #f5576c; animation: msg-shake 0.4s ease; }
 .game-msg.msg-success { color: #22c55e; animation: msg-pop 0.5s cubic-bezier(0.34,1.56,0.64,1); }
-.game-msg.msg-info { color: #3182F6; }
+.game-msg.msg-info { color: #6537CE; }
 @keyframes msg-shake {
     0%,100% { transform: translateX(0); } 20% { transform: translateX(-8px); }
     40% { transform: translateX(8px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); }
@@ -555,7 +568,7 @@
     transition: all 0.4s cubic-bezier(0.34,1.56,0.64,1);
 }
 .sdk-diff-badge.diff-easy { background: linear-gradient(135deg, #43e97b, #38f9d7); color: #1a1a2e; }
-.sdk-diff-badge.diff-normal { background: linear-gradient(135deg, #3182F6, #764ba2); color: white; }
+.sdk-diff-badge.diff-normal { background: linear-gradient(135deg, #6537CE, #764ba2); color: white; }
 .sdk-diff-badge.diff-hard { background: linear-gradient(135deg, #f5576c, #ff6b6b); color: white;
     animation: hard-pulse 1.5s ease-in-out infinite; }
 @keyframes hard-pulse {
@@ -588,9 +601,9 @@
     color: #8B95A1;
 }
 .sdk-pip.active .pip-label, .sdk-pip.done .pip-label { opacity: 1; }
-.sdk-pip.active { background: #3182F6; color: white; border-color: #3182F6; transform: scale(1.2);
+.sdk-pip.active { background: #6537CE; color: white; border-color: #6537CE; transform: scale(1.2);
     box-shadow: 0 0 18px rgba(99,102,241,0.5); }
-.sdk-pip.active .pip-label { color: #3182F6; }
+.sdk-pip.active .pip-label { color: #6537CE; }
 .sdk-pip.done { background: #22c55e; color: white; border-color: #22c55e; }
 .sdk-pip.done .pip-label { color: #22c55e; }
 .sdk-pip-line { width: 36px; height: 3px; background: #F2F4F6; transition: background 0.4s; }
@@ -617,14 +630,14 @@
 .grid-6 .sudoku-cell { font-size: 20px; }
 .grid-9 .sudoku-cell { font-size: 16px; }
 .sudoku-cell.given {
-    background: linear-gradient(135deg, #f0f0ff, #e8e8f8); color: #3182F6; cursor: default;
+    background: linear-gradient(135deg, #f0f0ff, #e8e8f8); color: #6537CE; cursor: default;
 }
 .grid-4 .sudoku-cell.given { font-size: 26px; }
 .grid-6 .sudoku-cell.given { font-size: 22px; }
 .grid-9 .sudoku-cell.given { font-size: 18px; }
 .sudoku-cell.input-cell { background: #fff; }
 .sudoku-cell.input-cell.selected {
-    background: #3182F6; color: white !important;
+    background: #6537CE; color: white !important;
     box-shadow: inset 0 0 0 2px #1B64DA;
     z-index: 1; position: relative;
 }
@@ -658,7 +671,7 @@
     cursor: pointer; transition: all 0.15s;
     display: flex; align-items: center; justify-content: center;
 }
-.sdk-num:hover { background: #3182F6; color: white; border-color: #3182F6; transform: scale(1.1); }
+.sdk-num:hover { background: #6537CE; color: white; border-color: #6537CE; transform: scale(1.1); }
 .sdk-num:active { transform: scale(0.92); }
 .sdk-erase { font-size: 18px; color: #f5576c; border-color: #fdd; }
 .sdk-erase:hover { background: #f5576c; color: white; border-color: #f5576c; }
@@ -826,7 +839,7 @@
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 8px; padding: 0 20px; font-size: 13px; color: #8B95A1;
 }
-.tetris-score strong { color: #3182F6; font-size: 16px; }
+.tetris-score strong { color: #6537CE; font-size: 16px; }
 .tetris-next-label { font-size: 11px; color: #8B95A1; }
 .tetris-play-area {
     display: flex; justify-content: center; align-items: flex-start; gap: 12px;
@@ -865,7 +878,7 @@
     transition: all 0.15s; display: flex; align-items: center; justify-content: center;
     user-select: none; -webkit-user-select: none;
 }
-.tetris-ctrl-btn:hover { background: #3182F6; color: white; border-color: #3182F6; }
+.tetris-ctrl-btn:hover { background: #6537CE; color: white; border-color: #6537CE; }
 .tetris-ctrl-btn:active { transform: scale(0.9); background: #1B64DA; color: white; border-color: #1B64DA; }
 .tetris-ctrl-drop {
     width: auto; padding: 0 20px; font-size: 14px; font-weight: 700; gap: 4px;
@@ -968,7 +981,7 @@
 }
 .clear-title {
     font-size: 36px; font-weight: 900; margin: 0 0 8px;
-    background: linear-gradient(135deg, #3182F6, #f472b6, #fbbf24);
+    background: linear-gradient(135deg, #6537CE, #f472b6, #fbbf24);
     background-size: 200% 200%;
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -1387,7 +1400,7 @@ const TETROMINOES = {
     S: { blocks: [[0,1],[0,2],[1,0],[1,1]], color: '#43e97b' },
     Z: { blocks: [[0,0],[0,1],[1,1],[1,2]], color: '#f5576c' },
     L: { blocks: [[0,0],[0,1],[0,2],[1,0]], color: '#ff6b35' },
-    J: { blocks: [[0,0],[0,1],[0,2],[1,2]], color: '#3182F6' },
+    J: { blocks: [[0,0],[0,1],[0,2],[1,2]], color: '#6537CE' },
 };
 const TETRO_KEYS = Object.keys(TETROMINOES);
 
@@ -2045,7 +2058,7 @@ function showDartClear(total) {
     // Confetti
     const confetti = document.getElementById('evenday-confetti');
     confetti.innerHTML = '';
-    const colors = ['#e74c3c','#27ae60','#ffd700','#3182F6','#f5576c','#4facfe','#ff6b35'];
+    const colors = ['#e74c3c','#27ae60','#ffd700','#6537CE','#f5576c','#4facfe','#ff6b35'];
     for (let i = 0; i < 40; i++) {
         const piece = document.createElement('div');
         piece.className = 'confetti-piece';
@@ -2117,7 +2130,7 @@ function showClearScreen(type) {
     // 색종이 파티클
     const confetti = document.getElementById('clear-confetti');
     confetti.innerHTML = '';
-    const colors = ['#3182F6','#f5576c','#ffd700','#43e97b','#4facfe','#fa709a','#ff6b35'];
+    const colors = ['#6537CE','#f5576c','#ffd700','#43e97b','#4facfe','#fa709a','#ff6b35'];
     for (let i = 0; i < 40; i++) {
         const piece = document.createElement('div');
         piece.className = 'confetti-piece';
@@ -2261,14 +2274,29 @@ const DEMO_MODE = false; // 시연 모드: true면 오버레이 비활성화
     }
 })();
 
+let crawlTimer = null;
+
+function setCrawlStage(idx, label) {
+    document.querySelectorAll('#crawl-stages .stage-item').forEach((el, i) => {
+        el.classList.toggle('is-done', i < idx);
+        el.classList.toggle('is-active', i === idx);
+        if (i < idx) el.querySelector('.stage-dot').textContent = '\u2713';
+    });
+    const pct = [12, 55, 88, 100][Math.min(idx, 3)];
+    document.getElementById('crawl-fill').style.width = pct + '%';
+    if (label) document.getElementById('crawl-stage').textContent = label;
+}
+
 async function startCrawl() {
     const btn = document.getElementById('btn-start-crawl');
     const statusArea = document.getElementById('crawl-status');
     const statusText = document.getElementById('crawl-status-text');
 
     btn.disabled = true;
-    statusArea.style.display = 'flex';
-    statusText.textContent = '크롤링 시작 중...';
+    btn.textContent = '수집 중...';
+    statusArea.style.display = 'block';
+    setCrawlStage(0, '딜사이트에 접속하고 있어요');
+    crawlTimer = startElapsed('crawl-elapsed');
     showFunFacts();
 
     try {
@@ -2281,16 +2309,25 @@ async function startCrawl() {
         });
         const data = await res.json();
         if (data.session_id) {
-            statusText.textContent = '크롤링 진행 중... 잠시 기다려주세요.';
+            setCrawlStage(1, '기사 목록을 모으고 있어요');
             pollCrawlStatus(data.session_id);
         } else {
-            statusText.textContent = '오류: ' + (data.detail || '알 수 없는 오류');
-            btn.disabled = false;
+            failCrawl(data.detail || '알 수 없는 오류');
         }
     } catch (e) {
-        statusText.textContent = '오류: ' + e.message;
-        btn.disabled = false;
+        failCrawl(e.message);
     }
+}
+
+function failCrawl(msg) {
+    const btn = document.getElementById('btn-start-crawl');
+    document.getElementById('crawl-stage').textContent = '수집에 실패했어요';
+    document.getElementById('crawl-status-text').textContent = msg;
+    document.getElementById('crawl-fill').style.background = 'var(--error)';
+    if (crawlTimer) clearInterval(crawlTimer);
+    btn.disabled = false;
+    btn.textContent = '다시 시도';
+    showToast('수집 실패: ' + msg, 'error');
 }
 
 async function pollCrawlStatus(sessionId) {
@@ -2299,20 +2336,26 @@ async function pollCrawlStatus(sessionId) {
         try {
             const res = await fetch(`/api/crawl/${sessionId}`);
             const data = await res.json();
+
             if (data.status === 'crawl_done') {
                 clearInterval(interval);
-                statusText.textContent = `크롤링 완료! ${data.article_count}개 기사 수집됨. 이동 중...`;
-                setTimeout(() => window.location.href = `/review/${sessionId}`, 1000);
+                if (crawlTimer) clearInterval(crawlTimer);
+                setCrawlStage(3, `${data.article_count}개 기사를 찾았어요`);
+                statusText.textContent = '기사 선택 화면으로 이동합니다...';
+                showToast(`${data.article_count}개 기사 수집 완료`);
+                setTimeout(() => window.location.href = `/review/${sessionId}`, 900);
             } else if (data.status === 'error') {
                 clearInterval(interval);
-                statusText.textContent = '오류: ' + data.error;
-                document.getElementById('btn-start-crawl').disabled = false;
+                failCrawl(data.error);
             } else {
-                statusText.textContent = `크롤링 진행 중... (${data.progress || ''})`;
+                // 진행 메시지에 '날짜' 가 보이면 마지막 단계로 넘어간 것으로 본다
+                const msg = data.progress || '';
+                if (/날짜|필터|범위/.test(msg)) setCrawlStage(2, '기간에 맞는 기사를 추리고 있어요');
+                if (msg) statusText.textContent = msg;
             }
         } catch (e) {
             clearInterval(interval);
-            statusText.textContent = '상태 확인 오류: ' + e.message;
+            failCrawl('상태 확인 실패: ' + e.message);
         }
     }, 2000);
 }

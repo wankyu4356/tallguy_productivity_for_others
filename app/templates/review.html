@@ -2,24 +2,35 @@
 {% block title %}기사 선택 - 딜사이트플러스 News Clipper{% endblock %}
 {% block content %}
 <div class="container">
-    <h1>기사 선택</h1>
-    <p>수집 기간: {{ session.date_from.strftime('%Y-%m-%d %H:%M') }} ~ {{ session.date_to.strftime('%Y-%m-%d %H:%M') }}</p>
-    <p>총 {{ session.articles | length }}개 기사 수집됨</p>
+    <div class="page-head">
+        <h1>실을 기사를 <span class="accent">골라주세요</span></h1>
+        <div class="meta-row">
+            <span>{{ session.articles | length }}개 수집됨</span>
+            <span class="meta-dot"></span>
+            <span>{{ session.date_from.strftime('%m월 %d일 %H:%M') }} ~ {{ session.date_to.strftime('%m월 %d일 %H:%M') }}</span>
+        </div>
+    </div>
 
     <div class="card">
         <div class="tabs">
-            <div class="tab active" data-tab="recommend" onclick="switchTab('recommend')">LLM 추천</div>
-            <div class="tab" data-tab="manual" onclick="switchTab('manual')">전체 목록 (수동)</div>
+            <div class="tab active" data-tab="recommend" onclick="switchTab('recommend')">AI 추천</div>
+            <div class="tab" data-tab="manual" onclick="switchTab('manual')">전체 목록</div>
         </div>
 
         {% if session.status.value == 'crawl_done' and not session.recommendations %}
-        <div id="recommend-action" style="margin-bottom: 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px; background: var(--bg-surface); border: 1px solid var(--glass-border); border-radius: var(--radius);">
-            <label for="max-count" style="font-size: 14px; font-weight: 600; color: var(--text);">추천 기사 수:</label>
-            <input type="number" id="max-count" min="1" max="{{ session.articles | length }}"
-                   placeholder="예: 20" style="width: 80px; padding: 8px 12px; border: 1px solid var(--glass-border); border-radius: var(--radius-sm); font-size: 14px; background: var(--bg); color: var(--text); font-family: inherit;">
-            <span style="font-size: 13px; color: var(--text-muted);">/ {{ session.articles | length }}개</span>
-            <button class="btn btn-primary" onclick="requestRecommend()">&#x2728; AI 추천 받기</button>
-            <span id="recommend-status" style="color: var(--text-secondary);"></span>
+        <div id="recommend-action" class="recommend-box">
+            <div class="recommend-copy">
+                <div class="recommend-title">AI에게 추천받기</div>
+                <div class="recommend-desc">수집한 {{ session.articles | length }}개 중 중요한 기사를 골라 줍니다.</div>
+            </div>
+            <div class="recommend-controls">
+                <div class="num-field">
+                    <input type="number" id="max-count" min="1" max="{{ session.articles | length }}" placeholder="20">
+                    <span class="num-suffix">개</span>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="requestRecommend()">추천 받기</button>
+            </div>
+            <span id="recommend-status" class="recommend-status"></span>
         </div>
         {% endif %}
 
@@ -97,10 +108,14 @@
         </div>
     </div>
 
-    <div class="card" style="text-align: center;">
-        <button class="btn btn-primary" onclick="confirmSelection()" style="font-size: 16px; padding: 14px 36px; border-radius: 14px;">
-            &#x1F680; 선택 확정 및 PDF 생성
-        </button>
+    <div class="action-bar">
+        <div class="action-bar-inner">
+            <div class="action-summary">
+                <span class="count-value" id="action-count">0</span><span class="count-total"> / <span id="action-total">{{ session.articles | length }}</span>개 선택</span>
+                <span class="action-hint">선택한 기사로 PDF와 DOCX를 만듭니다</span>
+            </div>
+            <button class="btn btn-primary" id="btn-confirm" onclick="confirmSelection()">문서 만들기</button>
+        </div>
     </div>
 </div>
 {% endblock %}

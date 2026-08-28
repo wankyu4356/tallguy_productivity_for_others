@@ -2,25 +2,33 @@
 {% block title %}결과 - 딜사이트플러스 News Clipper{% endblock %}
 {% block content %}
 <div class="container">
-    <h1 style="text-align: center;">&#x2705; 클리핑 완료</h1>
-
     {% if session.status.value == 'done' %}
-    <div class="card download-area" style="position: relative; overflow: hidden;">
-        <div style="position: absolute; inset: 0; background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.1), transparent 60%); pointer-events: none;"></div>
-        <div style="font-size: 56px; margin-bottom: 16px;">&#x1F4E6;</div>
-        <h2 style="border: none; justify-content: center; font-size: 20px; margin-bottom: 8px;">다운로드 준비 완료</h2>
-        <p style="margin-bottom: 28px; color: var(--text-secondary);">
-            <strong style="color: var(--primary); font-size: 24px;">{{ session.selected_ids | length }}</strong>
-            <span>개 기사가 클리핑되었습니다.</span>
-        </p>
-        <a href="/api/download/{{ session.session_id }}" class="btn btn-primary" style="font-size: 18px; padding: 16px 48px; border-radius: 16px;">
-            &#x1F4E5; ZIP 파일 다운로드
-        </a>
+    <div class="result-hero">
+        <div class="result-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                 stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <h1>클리핑이 <span class="accent">완성됐어요</span></h1>
+        <p class="result-sub">기사 {{ session.selected_ids | length }}건이 하나의 묶음으로 정리됐습니다.</p>
+    </div>
+
+    <div class="file-card">
+        <div class="file-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/>
+                <path d="M14 3h7v7"/><path d="M21 3l-9 9"/></svg>
+        </div>
+        <div class="file-body">
+            <div class="file-name">뉴스클리핑_{{ session.session_id[:8] }}.zip</div>
+            <div class="file-meta">PDF 병합본 · DOCX 목차 · 기사 {{ session.selected_ids | length }}건</div>
+        </div>
+        <a href="/api/download/{{ session.session_id }}" class="btn btn-primary" download>다운로드</a>
     </div>
 
     {% if session.classification %}
     <div class="card">
-        <h2>&#x1F4CA; 분류 구조</h2>
+        <h2>분류 구조</h2>
         <ul class="classification-tree">
             {% for cat in session.classification.categories %}
             <li class="cat-1">{{ loop.index }}. {{ cat.name }}
@@ -86,18 +94,25 @@
     {% endif %}
 
     {% elif session.status.value == 'error' %}
-    <div class="card" style="border-left: 3px solid var(--error);">
-        <h2 style="color: var(--error);">&#x26A0;&#xFE0F; 오류 발생</h2>
-        <p style="color: var(--text-secondary);">{{ session.error }}</p>
+    <div class="result-hero">
+        <div class="result-check is-error" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+                 stroke-linecap="round"><path d="M12 8v5"/><path d="M12 17h.01"/></svg>
+        </div>
+        <h1>문제가 생겼어요</h1>
+        <p class="result-sub">{{ session.error }}</p>
     </div>
     {% else %}
-    <div class="card">
-        <p style="color: var(--text-secondary);">아직 진행 중입니다. <a href="/progress/{{ session.session_id }}" style="color: var(--primary);">진행 상황 확인</a></p>
+    <div class="result-hero">
+        <div class="result-check is-pending" aria-hidden="true"><span class="spinner"></span></div>
+        <h1>아직 만들고 있어요</h1>
+        <p class="result-sub">문서를 생성하는 중입니다.</p>
+        <a href="/progress/{{ session.session_id }}" class="btn btn-primary result-cta">진행 상황 보기</a>
     </div>
     {% endif %}
 
-    <div style="text-align: center; margin-top: 24px;">
-        <a href="/" class="btn">&#x1F504; 새 클리핑 시작</a>
+    <div class="result-foot">
+        <a href="/" class="btn-link">새 클리핑 시작하기</a>
     </div>
 </div>
 {% endblock %}

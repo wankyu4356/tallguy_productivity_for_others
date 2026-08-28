@@ -10,10 +10,14 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 block_cipher = None
 
+# 난독화 빌드에서는 build_obf/ 를, 일반 빌드에서는 현재 폴더를 소스로 쓴다.
+SRC = os.environ.get("DEALSITE_SRC_ROOT", ".")
+ENTRY = os.path.join(SRC, "launcher.py")
+
 # --- 번들에 포함할 리소스 (templates / static) ---
 datas = [
-    ("app/templates", "app/templates"),
-    ("app/static", "app/static"),
+    (os.path.join(SRC, "app/templates"), "app/templates"),
+    (os.path.join(SRC, "app/static"), "app/static"),
 ]
 binaries = []
 
@@ -38,6 +42,13 @@ for pkg in ("uvicorn", "anthropic", "selenium", "pydantic", "pydantic_settings",
     except Exception as exc:
         print(f"[spec] collect_submodules({pkg}) 건너뜀: {exc}")
 
+# 난독화 런타임 (일반 빌드에는 없음 — 있으면 포함)
+import glob as _glob
+for _rt in _glob.glob(os.path.join(SRC, "pyarmor_runtime_*")):
+    _name = os.path.basename(_rt)
+    hiddenimports.append(_name)
+    datas.append((_rt, _name))
+
 hiddenimports += [
     "app",
     "app.main",
@@ -58,8 +69,8 @@ hiddenimports += [
 ]
 
 a = Analysis(
-    ["launcher.py"],
-    pathex=[os.path.abspath(".")],
+    [ENTRY],
+    pathex=[os.path.abspath(SRC)],
     binaries=binaries,
     datas=datas,
     hiddenimports=sorted(set(hiddenimports)),

@@ -1,27 +1,29 @@
 {% extends "base.html" %}
 {% block title %}Index 검수 - 딜사이트플러스 News Clipper{% endblock %}
 {% block head %}
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+<!-- 로컬 번들: 사내망처럼 CDN이 막힌 환경에서도 드래그앤드롭이 동작해야 한다 -->
+<script src="/static/js/Sortable.min.js"></script>
 {% endblock %}
 
 {% block content %}
 <div class="container ri-container">
-    <div class="ri-header">
-        <div>
-            <h1>Index 검수</h1>
-            <p>기사 블록을 드래그하여 순서 변경 또는 다른 섹션으로 이동하세요.</p>
-        </div>
-        <button class="btn btn-primary" id="btn-confirm">확정 및 PDF/DOCX 생성</button>
+    <div class="page-head">
+        <h1>목차를 <span class="accent">다듬어주세요</span></h1>
+        <p class="page-sub">기사를 끌어서 순서를 바꾸거나 다른 섹션으로 옮길 수 있어요.</p>
     </div>
 
     <nav class="ri-nav" id="section-nav"></nav>
 
     <div id="classification-tree"></div>
 
-    <div style="text-align: center; margin-top: 16px;">
-        <button class="btn btn-primary" id="btn-confirm-bottom" style="padding: 10px 32px;">
-            확정 및 PDF/DOCX 생성
-        </button>
+    <div class="action-bar" id="ri-action-bar">
+        <div class="action-bar-inner">
+            <div class="action-summary">
+                <span class="count-value" id="ri-total">0</span><span class="count-total">개 기사 · <span id="ri-sections">0</span>개 섹션</span>
+                <span class="action-hint">확정하면 PDF와 DOCX가 만들어집니다</span>
+            </div>
+            <button class="btn btn-primary" id="btn-confirm-bottom">확정하고 문서 만들기</button>
+        </div>
     </div>
 
     <div id="finalize-status" style="display: none; margin-top: 20px;">
@@ -122,6 +124,7 @@ ${(dbg.available_ids_sample || []).join('\\n') || '(없음)'}</pre>
             return;
         }
         renderTree(treeData);
+        updateActionBarCounts();
     } catch (e) {
         container.innerHTML = `<div class="card" style="text-align:center; padding:40px;">
             <h3 style="color:var(--error);">네트워크 오류</h3>
@@ -237,6 +240,7 @@ function createSortableList(articles) {
             if (evt.from) renumberList(evt.from);
             if (evt.to && evt.to !== evt.from) renumberList(evt.to);
             updateNavCounts();
+            updateActionBarCounts();
         }
     });
     allSortables.push(sortable);
@@ -285,6 +289,16 @@ function removeArticle(btn) {
     item.remove();
     if (list) renumberList(list);
     updateNavCounts();
+    updateActionBarCounts();
+}
+
+function updateActionBarCounts() {
+    const total = document.querySelectorAll('#classification-tree .ri-article-item').length;
+    const sections = document.querySelectorAll('#classification-tree .ri-category').length;
+    const t = document.getElementById('ri-total');
+    const sec = document.getElementById('ri-sections');
+    if (t) t.textContent = total;
+    if (sec) sec.textContent = sections;
 }
 
 function updateNavCounts() {
@@ -373,7 +387,7 @@ function findArticle(id) {
 }
 
 async function handleConfirm() {
-    const btns = document.querySelectorAll('#btn-confirm, #btn-confirm-bottom');
+    const btns = document.querySelectorAll('#btn-confirm-bottom');
     btns.forEach(b => { b.disabled = true; b.textContent = '처리 중...'; });
 
     const tree = collectTree();
@@ -414,7 +428,6 @@ async function handleConfirm() {
     evtSource.onerror = function() { evtSource.close(); };
 }
 
-document.getElementById('btn-confirm').addEventListener('click', handleConfirm);
 document.getElementById('btn-confirm-bottom').addEventListener('click', handleConfirm);
 
 loadClassification();
