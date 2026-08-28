@@ -49,10 +49,18 @@ async def lifespan(app: FastAPI):
     if not is_configured():
         logger.warning("ANTHROPIC_API_KEY 미설정 — /setup 화면에서 입력받습니다.")
 
-    settings.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    cleanup_old_sessions()
+    try:
+        settings.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        cleanup_old_sessions()
+    except Exception as e:
+        logger.warning(f"출력 폴더 준비 중 경고(무시하고 계속): {e}")
 
-    await browser_manager.start()
+    # 브라우저 준비가 실패해도 서버는 떠야 한다 (웹 UI 는 브라우저가 필요 없음).
+    try:
+        await browser_manager.start()
+    except Exception as e:
+        logger.warning(f"브라우저 준비 실패(크롤링 시 재시도): {e}")
+
     logger.info("Application started")
 
     yield

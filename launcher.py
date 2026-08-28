@@ -47,18 +47,42 @@ def prepare_env_file() -> None:
         print("  아직 API 키가 없습니다 — 브라우저에서 바로 입력하실 수 있습니다.\n")
 
 
-def open_browser_when_ready(url: str, port: int, timeout: float = 30.0) -> None:
-    """서버가 실제로 응답하기 시작하면 브라우저를 연다."""
+def _open_url(url: str) -> None:
+    """기본 브라우저로 URL 을 연다.
+
+    PyInstaller 로 묶은 exe 에서는 webbrowser 모듈이 기본 브라우저를 제대로
+    찾지 못해 엉뚱한 파일 경로를 여는 경우가 있다. Windows 에서는 os.startfile
+    이 가장 확실하므로 그것을 먼저 쓰고, 실패하면 webbrowser 로 넘어간다.
+    """
+    try:
+        if sys.platform == "win32":
+            os.startfile(url)  # type: ignore[attr-defined]
+            return
+    except Exception:
+        pass
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
+
+
+def open_browser_when_ready(url: str, port: int, timeout: float = 40.0) -> None:
+    """서버가 실제로 응답하기 시작하면 브라우저를 연다.
+
+    서버가 뜨지 않으면 빈 페이지가 뜨는 것보다 콘솔의 주소 안내가 낫다.
+    """
     deadline = time.time() + timeout
     while time.time() < deadline:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(0.4)
             if s.connect_ex(("127.0.0.1", port)) == 0:
-                webbrowser.open(url)
+                time.sleep(0.4)  # 서버가 완전히 준비되도록 살짝 여유
+                _open_url(url)
                 return
         time.sleep(0.3)
-    # 시간 내에 못 뜨면 그냥 열어본다 (사용자가 주소를 볼 수 있게)
-    webbrowser.open(url)
+    # 시간 내에 서버가 안 떴으면 죽은 페이지를 여는 대신 안내만 남긴다.
+    print("\n  [안내] 브라우저가 자동으로 열리지 않았습니다.")
+    print(f"  아래 주소를 브라우저에 직접 입력해 주세요:  {url}\n")
 
 
 def main() -> int:
@@ -75,9 +99,12 @@ def main() -> int:
 
     print(f"  작업 폴더 : {user_data_root()}")
     print(f"  결과 저장 : {output_dir()}")
-    print(f"  주소      : {url}")
-    print("\n  브라우저가 자동으로 열립니다.")
-    print("  종료하려면 이 창을 닫거나 Ctrl+C 를 누르세요.\n")
+    print()
+    print("  +" + "-" * 46 + "+")
+    print(f"  |  브라우저가 안 열리면 이 주소로 접속하세요       |")
+    print(f"  |     {url:<40}|")
+    print("  +" + "-" * 46 + "+")
+    print("\n  종료하려면 이 창을 닫거나 Ctrl+C 를 누르세요.\n")
     print("=" * 60 + "\n")
 
     threading.Thread(

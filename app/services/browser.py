@@ -56,17 +56,10 @@ class BrowserManager:
         )
 
         self._edge_options = opts
-
-        # Warm-up: trigger Selenium Manager download on first run
-        try:
-            driver = await asyncio.to_thread(self._create_driver)
-            await asyncio.to_thread(driver.quit)
-            logger.info("Browser warm-up complete (Edge + EdgeDriver ready)")
-        except Exception as e:
-            logger.warning(f"Browser warm-up failed: {e}")
-
+        # 시작 시 실제 드라이버를 띄우지 않는다. Edge/드라이버가 없거나 문제가
+        # 있어도 웹 UI 는 떠야 하기 때문. 드라이버는 첫 크롤 때 자동 준비된다.
         self._started = True
-        logger.info("BrowserManager started")
+        logger.info("BrowserManager ready (driver starts lazily on first crawl)")
 
     async def stop(self):
         self._started = False
