@@ -43,6 +43,8 @@ hiddenimports += [
     "app.main",
     "app.config",
     "app.paths",
+    "app.routers.settings",
+    "app.services.env_store",
     "email.mime.multipart",
     "email.mime.text",
     "encodings.idna",

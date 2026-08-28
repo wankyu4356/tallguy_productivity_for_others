@@ -201,29 +201,36 @@
 </div>
 
 <div class="container">
-    <h1>딜사이트플러스 Daily News Clipping</h1>
+    <div class="page-head">
+        <h1>오늘의 뉴스 클리핑</h1>
+        <p class="page-sub">기간을 확인하고 수집을 시작하세요.</p>
+    </div>
 
     <div class="crawl-layout" id="crawl-layout">
         <div class="crawl-main">
-            <div class="card">
-                <h2>새 클리핑 시작</h2>
-                <div class="date-info">
-                    <p><strong>수집 기간:</strong></p>
-                    <div class="date-inputs">
-                        <input type="datetime-local" id="date-from" value="{{ date_from_str }}">
-                        <span class="date-sep">~</span>
-                        <input type="datetime-local" id="date-to" value="{{ date_to_str }}">
+            <div class="field-group">
+                <div class="field-group-label"><span>수집 기간</span></div>
+                <div class="field-card">
+                    <div class="period-row">
+                        <label class="period-label" for="date-from">시작</label>
+                        <input type="datetime-local" id="date-from" class="period-input" value="{{ date_from_str }}">
+                    </div>
+                    <div class="field-divider"></div>
+                    <div class="period-row">
+                        <label class="period-label" for="date-to">종료</label>
+                        <input type="datetime-local" id="date-to" class="period-input" value="{{ date_to_str }}">
                     </div>
                 </div>
-                <div class="actions">
-                    <button id="btn-start-crawl" class="btn btn-primary" onclick="startCrawl()">
-                        크롤링 시작
-                    </button>
-                </div>
-                <div id="crawl-status" class="status-area" style="display:none;">
-                    <div class="spinner"></div>
-                    <p id="crawl-status-text">크롤링 준비 중...</p>
-                </div>
+                <p class="field-help period-help">영업일 기준으로 자동 계산된 값입니다. 필요하면 직접 바꿀 수 있어요.</p>
+            </div>
+
+            <button id="btn-start-crawl" class="btn btn-primary btn-block btn-cta" onclick="startCrawl()">
+                기사 수집 시작
+            </button>
+
+            <div id="crawl-status" class="status-area" style="display:none;">
+                <div class="spinner"></div>
+                <p id="crawl-status-text">크롤링 준비 중...</p>
             </div>
         </div>
 
@@ -242,8 +249,8 @@
     </div>
 
     {% if sessions %}
-    <div class="card">
-        <h2>이전 세션</h2>
+    <div class="field-group session-group">
+        <div class="field-group-label"><span>이전 작업</span></div>
         <table class="session-table">
             <thead>
                 <tr>
@@ -2062,7 +2069,9 @@ function closeEvenday() {
         '좋은 하루 되세요! 일 열심히! &#x1F525;',
         '에이스는 다르다... 바로 출근! &#x1F60E;',
     ];
-    toast.innerHTML = msgs[Math.floor(Math.random() * msgs.length)];
+    toast.innerHTML = skipCodeUsed
+        ? '&#x1F513; 히든 코드 확인 — 바로 넘어갑니다'
+        : msgs[Math.floor(Math.random() * msgs.length)];
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 2500);
     overlay.classList.add('restday-closing');
@@ -2137,12 +2146,46 @@ function closeRestday() {
         '고생 끝에 낙이 온다! 이제 진짜 일하세요 &#x1F60F;',
         '게임 클리어 기념, 오늘 하루도 화이팅! &#x1F525;',
     ];
-    toast.innerHTML = toastMsgs[Math.floor(Math.random() * toastMsgs.length)];
+    toast.innerHTML = skipCodeUsed
+        ? '&#x1F513; 히든 코드 확인 — 바로 넘어갑니다'
+        : toastMsgs[Math.floor(Math.random() * toastMsgs.length)];
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 2500);
     overlay.classList.add('restday-closing');
     setTimeout(() => { overlay.style.display = 'none'; overlay.classList.remove('restday-closing'); }, 500);
 }
+
+// ============ 히든 스킵 코드 ============
+// 게임 화면에서 'shwoa' 를 입력하면 곧바로 통과한다.
+let skipCodeUsed = false;
+
+(function () {
+    const CODE = 'shwoa';
+    let buffer = '';
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === undefined || e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey) return;
+
+        // 입력창에 타이핑 중이면 무시
+        const t = e.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
+                  t.tagName === 'SELECT' || t.isContentEditable)) return;
+
+        buffer = (buffer + e.key.toLowerCase()).slice(-CODE.length);
+        if (buffer !== CODE) return;
+        buffer = '';
+
+        const restday = document.getElementById('restday-overlay');
+        const evenday = document.getElementById('evenday-overlay');
+        const restOpen = restday && getComputedStyle(restday).display !== 'none';
+        const evenOpen = evenday && getComputedStyle(evenday).display !== 'none';
+        if (!restOpen && !evenOpen) return;
+
+        e.preventDefault();
+        skipCodeUsed = true;
+        if (restOpen) closeRestday(); else closeEvenday();
+    });
+})();
 
 // ============ 초기화 ============
 const DEMO_MODE = false; // 시연 모드: true면 오버레이 비활성화

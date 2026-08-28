@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}설정 · 딜사이트 News Clipper{% endblock %}
+
+{% block content %}
+<div class="container setup-container">
+
+    <div class="setup-hero">
+        <div class="setup-icon">{% if configured %}&#x2699;&#xFE0F;{% else %}&#x1F44B;{% endif %}</div>
+        <h1 id="setup-title">{% if configured %}설정{% else %}시작하기 전에<br>한 가지만 알려주세요{% endif %}</h1>
+        <p class="setup-sub" id="setup-sub">
+            {% if configured %}
+                값을 바꾸면 바로 반영됩니다. 프로그램을 다시 켜지 않아도 됩니다.
+            {% else %}
+                Claude API 키만 있으면 바로 시작할 수 있어요.<br>한 번만 입력하면 다음부터는 묻지 않습니다.
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- 필수: API 키 -->
+    <div class="field-group">
+        <div class="field-group-label">
+            <span>Claude API 키</span>
+            <span class="field-required">필수</span>
+        </div>
+        <div class="field-card">
+            <div class="field-row">
+                <input type="password" id="ANTHROPIC_API_KEY" class="field-input"
+                       placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+                <button type="button" class="field-reveal" id="toggle-key" title="보기">&#x1F441;&#xFE0F;</button>
+            </div>
+            <div class="field-foot">
+                <a href="https://console.anthropic.com/settings/keys" target="_blank" class="field-link">
+                    키 발급받기 &#x2197;
+                </a>
+                <button type="button" class="btn-inline" id="btn-test-key">연결 확인</button>
+            </div>
+            <div class="field-status" id="key-status"></div>
+        </div>
+    </div>
+
+    <!-- 선택: 딜사이트 로그인 -->
+    <div class="field-group">
+        <div class="field-group-label">
+            <span>딜사이트플러스 로그인</span>
+            <span class="field-optional">선택</span>
+        </div>
+        <div class="field-card">
+            <div class="field-row">
+                <input type="text" id="DEALSITEPLUS_ID" class="field-input"
+                       placeholder="아이디" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="field-divider"></div>
+            <div class="field-row">
+                <input type="password" id="DEALSITEPLUS_PW" class="field-input"
+                       placeholder="비밀번호" autocomplete="off">
+            </div>
+            <p class="field-help">비워두면 크롤링할 때 브라우저에서 직접 로그인합니다.</p>
+        </div>
+    </div>
+
+    <!-- 고급 -->
+    <div class="field-group">
+        <button type="button" class="disclosure" id="adv-toggle" aria-expanded="false">
+            <span>고급 설정</span>
+            <span class="disclosure-chevron">&#x203A;</span>
+        </button>
+        <div class="field-card disclosure-body" id="adv-body" hidden>
+            <label class="field-label" for="CLAUDE_MODEL">분류에 사용할 모델</label>
+            <div class="field-row">
+                <select id="CLAUDE_MODEL" class="field-input">
+                    <option value="claude-sonnet-5">Claude Sonnet 5 — 균형 (권장)</option>
+                    <option value="claude-opus-5">Claude Opus 5 — 최고 품질</option>
+                    <option value="claude-haiku-4-5">Claude Haiku 4.5 — 가장 빠름</option>
+                </select>
+            </div>
+            <div class="field-divider"></div>
+            <div class="switch-row">
+                <div>
+                    <div class="switch-title">크롤링 과정 보기</div>
+                    <div class="switch-desc">브라우저 창을 띄워 수집 과정을 직접 확인합니다.</div>
+                </div>
+                <button type="button" class="switch" id="BROWSER_HEADLESS_SWITCH"
+                        role="switch" aria-checked="false"><span class="switch-knob"></span></button>
+            </div>
+        </div>
+    </div>
+
+    <p class="setup-path">설정 파일 위치<br><code>{{ env_path }}</code></p>
+
+</div>
+
+<div class="cta-bar">
+    <div class="cta-inner">
+        {% if configured %}
+        <a href="/" class="btn btn-ghost">돌아가기</a>
+        {% endif %}
+        <button class="btn btn-primary btn-block" id="btn-save">
+            {% if configured %}저장하기{% else %}저장하고 시작하기{% endif %}
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const UNCHANGED = '__UNCHANGED__';
+const CONFIGURED = {{ 'true' if configured else 'false' }};
+let originalSecrets = {};
+
+async function loadSettings() {
+    try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        const v = data.values || {};
+
+        for (const key of ['ANTHROPIC_API_KEY', 'DEALSITEPLUS_ID', 'DEALSITEPLUS_PW']) {
+            const el = document.getElementById(key);
+            if (el && v[key]) el.value = v[key];
+        }
+
+        // 목록에 없는 모델이 저장돼 있으면 선택지를 만들어 붙인다
+        const modelSel = document.getElementById('CLAUDE_MODEL');
+        const model = v.CLAUDE_MODEL || '';
+        if (model) {
+            if (![...modelSel.options].some(o => o.value === model)) {
+                const opt = document.createElement('option');
+                opt.value = model;
+                opt.textContent = model + ' — 직접 지정됨';
+                modelSel.appendChild(opt);
+            }
+            modelSel.value = model;
+        }
+        originalSecrets = {
+            ANTHROPIC_API_KEY: v.ANTHROPIC_API_KEY || '',
+            DEALSITEPLUS_PW: v.DEALSITEPLUS_PW || '',
+        };
+
+        const headless = (v.BROWSER_HEADLESS || 'false').toLowerCase();
+        setSwitch(document.getElementById('BROWSER_HEADLESS_SWITCH'), headless !== 'true');
+    } catch (e) {
+        console.error('설정을 불러오지 못했습니다', e);
+    }
+}
+
+function setSwitch(el, on) {
+    el.setAttribute('aria-checked', on ? 'true' : 'false');
+    el.classList.toggle('switch-on', on);
+}
+
+document.getElementById('BROWSER_HEADLESS_SWITCH').addEventListener('click', function () {
+    setSwitch(this, this.getAttribute('aria-checked') !== 'true');
+});
+
+document.getElementById('toggle-key').addEventListener('click', function () {
+    const input = document.getElementById('ANTHROPIC_API_KEY');
+    input.type = input.type === 'password' ? 'text' : 'password';
+});
+
+document.getElementById('adv-toggle').addEventListener('click', function () {
+    const body = document.getElementById('adv-body');
+    const open = this.getAttribute('aria-expanded') === 'true';
+    this.setAttribute('aria-expanded', open ? 'false' : 'true');
+    body.hidden = open;
+});
+
+function setStatus(el, kind, msg) {
+    el.className = 'field-status field-status-' + kind;
+    el.innerHTML = msg;
+}
+
+document.getElementById('btn-test-key').addEventListener('click', async function () {
+    const status = document.getElementById('key-status');
+    const raw = document.getElementById('ANTHROPIC_API_KEY').value.trim();
+    const key = (raw.includes('•') || !raw) ? UNCHANGED : raw;
+
+    this.disabled = true;
+    setStatus(status, 'pending', '<span class="dot-spin"></span> 확인 중...');
+    try {
+        const res = await fetch('/api/settings/test-key', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ANTHROPIC_API_KEY: key}),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            setStatus(status, 'ok', '&#x2713; 연결됐습니다' + (data.note ? ' — ' + data.note : ''));
+        } else {
+            setStatus(status, 'error', '&#x2715; ' + data.error);
+        }
+    } catch (e) {
+        setStatus(status, 'error', '&#x2715; 확인 중 오류: ' + e.message);
+    }
+    this.disabled = false;
+});
+
+document.getElementById('btn-save').addEventListener('click', async function () {
+    const status = document.getElementById('key-status');
+    const keyRaw = document.getElementById('ANTHROPIC_API_KEY').value.trim();
+    const pwRaw = document.getElementById('DEALSITEPLUS_PW').value.trim();
+
+    // 마스킹된 값 그대로면 서버가 기존 값을 유지하도록 신호를 보낸다
+    const payload = {
+        ANTHROPIC_API_KEY: keyRaw.includes('•') ? UNCHANGED : keyRaw,
+        DEALSITEPLUS_PW: pwRaw.includes('•') ? UNCHANGED : pwRaw,
+        DEALSITEPLUS_ID: document.getElementById('DEALSITEPLUS_ID').value.trim(),
+        CLAUDE_MODEL: document.getElementById('CLAUDE_MODEL').value,
+        BROWSER_HEADLESS:
+            document.getElementById('BROWSER_HEADLESS_SWITCH').getAttribute('aria-checked') === 'true'
+                ? 'false' : 'true',
+    };
+
+    const keyMissing = !payload.ANTHROPIC_API_KEY ||
+        (payload.ANTHROPIC_API_KEY === UNCHANGED && !originalSecrets.ANTHROPIC_API_KEY);
+    if (keyMissing) {
+        setStatus(status, 'error', '&#x2715; Claude API 키를 입력해 주세요.');
+        document.getElementById('ANTHROPIC_API_KEY').focus();
+        return;
+    }
+
+    this.disabled = true;
+    const label = this.textContent;
+    this.textContent = '저장 중...';
+    try {
+        const res = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+            setStatus(status, 'error', '&#x2715; ' + (data.error || '저장에 실패했습니다.'));
+            this.disabled = false;
+            this.textContent = label;
+            return;
+        }
+        showToast(CONFIGURED ? '저장했습니다' : '설정 완료! 시작합니다');
+        setTimeout(() => { window.location.href = '/'; }, 700);
+    } catch (e) {
+        setStatus(status, 'error', '&#x2715; 저장 중 오류: ' + e.message);
+        this.disabled = false;
+        this.textContent = label;
+    }
+});
+
+function showToast(msg) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    requestAnimationFrame(() => t.classList.add('toast-in'));
+    setTimeout(() => t.remove(), 2200);
+}
+
+loadSettings();
+</script>
+{% endblock %}
