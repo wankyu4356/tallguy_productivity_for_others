@@ -66,6 +66,29 @@ reportlab 폰트가 모두 이 파일 안에 포함되므로 단일 파일만 �
 
 빌드 설정을 바꾸려면 `dealsite.spec` 을 수정하세요.
 
+### 보호 빌드 (코드 유출 방지)
+
+일반 PyInstaller exe 는 압축을 풀면 파이썬 바이트코드가 나와 디컴파일로
+소스를 복원할 수 있습니다. 외부 배포용은 **보호 빌드**를 사용하세요:
+
+```bash
+# Windows
+build_secure.bat
+
+# macOS / Linux
+./build_secure.sh
+```
+
+PyArmor 가 `app/` 전체와 `launcher.py` 를 암호화한 뒤 PyInstaller 로
+묶습니다. 결과 exe 는 압축을 풀어도 암호화 블롭만 나오며, uncompyle6 등
+표준 디컴파일러로 로직을 복원할 수 없습니다. 실행 동작은 일반 빌드와
+동일합니다.
+
+> 한계: 어떤 보호도 절대적이지 않습니다. 메모리 덤프 수준의 공격까지
+> 막지는 못하므로, **API 키 같은 비밀값은 애초에 exe 에 넣지 말고**
+> 지금처럼 사용자 `.env` 로 받는 구조를 유지하세요.
+
+
 ### 아이콘 지정 (선택)
 
 `app/static/img/dealsite-logo.ico` 파일을 두면 빌드 시 자동으로 exe 아이콘에

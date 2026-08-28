@@ -49,6 +49,24 @@ for _rt in _glob.glob(os.path.join(SRC, "pyarmor_runtime_*")):
     hiddenimports.append(_name)
     datas.append((_rt, _name))
 
+# 난독화 빌드에서는 import 체인이 블롭 안에 숨어 PyInstaller 가 추적하지 못한다.
+# 원본 app 트리를 직접 스캔해 모든 서브모듈을 강제 포함한다.
+def _all_app_modules():
+    mods = []
+    src_app = os.path.join(os.path.abspath("."), "app")
+    for root, _dirs, files in os.walk(src_app):
+        for fn in files:
+            if not fn.endswith(".py"):
+                continue
+            rel = os.path.relpath(os.path.join(root, fn), os.path.dirname(src_app))
+            mod = rel[:-3].replace(os.sep, ".")
+            if mod.endswith(".__init__"):
+                mod = mod[: -len(".__init__")]
+            mods.append(mod)
+    return mods
+
+hiddenimports += _all_app_modules()
+
 hiddenimports += [
     "app",
     "app.main",

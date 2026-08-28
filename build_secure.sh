@@ -22,7 +22,7 @@ mkdir -p "$OBF"
 
 echo "[3/5] 파이썬 소스 난독화..."
 # app 패키지 전체와 진입점을 난독화. 리소스(templates/static)는 그대로 복사.
-"$PY" -m pyarmor gen --recursive --output "$OBF" "$ROOT/app" "$ROOT/launcher.py"
+"$PY" -m pyarmor.cli gen --recursive --output "$OBF" "$ROOT/app" "$ROOT/launcher.py"
 # 난독화 대상이 아닌 리소스를 난독화된 app 트리에 덮어 넣는다
 cp -r "$ROOT/app/templates" "$OBF/app/templates"
 cp -r "$ROOT/app/static"    "$OBF/app/static"

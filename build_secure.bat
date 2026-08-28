@@ -23,7 +23,7 @@ if exist "%ROOT%dist" rmdir /s /q "%ROOT%dist"
 mkdir "%OBF%"
 
 echo [3/5] 파이썬 소스 난독화...
-python -m pyarmor gen --recursive --output "%OBF%" "%ROOT%app" "%ROOT%launcher.py"
+python -m pyarmor.cli gen --recursive --output "%OBF%" "%ROOT%app" "%ROOT%launcher.py"
 if errorlevel 1 ( echo [오류] 난독화 실패 & pause & exit /b 1 )
 xcopy "%ROOT%app\templates" "%OBF%\app\templates" /E /I /Y /Q >nul
 xcopy "%ROOT%app\static"    "%OBF%\app\static"    /E /I /Y /Q >nul
