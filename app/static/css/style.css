@@ -159,11 +159,11 @@ nav {
 .logo:active { opacity: 0.45; }
 
 .logo-mark {
-    height: 26px;
+    height: 20px;
     width: auto;
-    border-radius: 5px;
+    border-radius: 4px;
     display: block;
-    box-shadow: var(--shadow-xs);
+    flex-shrink: 0;
 }
 
 .logo-divider {

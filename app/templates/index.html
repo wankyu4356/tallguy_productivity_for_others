@@ -484,20 +484,22 @@
 
 /* 쪼크쪼크 토스트 */
 .restday-toast {
-    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-    background: linear-gradient(135deg, #3182F6, #8b5cf6);
-    color: white; padding: 12px 24px; border-radius: 30px;
-    font-size: 14px; font-weight: 600; z-index: 10000;
-    box-shadow: 0 4px 24px rgba(99, 102, 241, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    animation: toast-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), toast-out 0.3s ease 2s forwards;
+    position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+    background: rgba(25, 31, 40, 0.94);
+    color: white; padding: 14px 22px; border-radius: 999px;
+    font-size: 14.5px; font-weight: 600; z-index: 10000;
+    max-width: calc(100vw - 40px); text-align: center;
+    box-shadow: 0 12px 32px rgba(0, 19, 43, 0.24);
+    animation: toast-in 0.34s cubic-bezier(0.32, 0.72, 0, 1), toast-out 0.3s ease 2s forwards;
 }
 @keyframes toast-in {
-    0% { opacity: 0; transform: translateX(-50%) translateY(-20px) scale(0.8); }
-    100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+    0% { opacity: 0; transform: translateX(-50%) translateY(16px); }
+    100% { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 @keyframes toast-out {
     0% { opacity: 1; transform: translateX(-50%) translateY(0); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(12px); }
+}
     100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
 }
 
