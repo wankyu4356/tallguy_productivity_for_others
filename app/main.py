@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import settings
+from app.paths import static_dir, templates_dir
 from app.models.schemas import SessionState
 from app.routers import health, clipper
 from app.services.browser import BrowserManager
@@ -62,8 +63,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="딜사이트플러스 News Clipper", lifespan=lifespan)
 
-app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
-templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+app.mount("/static", StaticFiles(directory=static_dir()), name="static")
+templates = Jinja2Templates(directory=templates_dir())
 
 
 # Python 3.14: Jinja2 LRUCache creates cache_key = (name, globals_dict) which is

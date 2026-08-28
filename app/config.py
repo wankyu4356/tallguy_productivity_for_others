@@ -1,6 +1,8 @@
 from pathlib import Path
 from pydantic_settings import BaseSettings
 
+from app.paths import env_file, output_dir, user_data_root
+
 # 은퇴(retired)한 모델 ID → 현재 후속 모델.
 # 기존 .env에 옛 모델이 박혀 있으면 API가 404를 내고 분류가 전부 실패하므로,
 # 사용자가 .env를 직접 고치지 않아도 되도록 자동으로 승계 모델로 바꿔준다.
@@ -25,7 +27,7 @@ class Settings(BaseSettings):
     CLAUDE_MODEL: str = "claude-sonnet-5"
 
     # App settings
-    OUTPUT_DIR: Path = Path("./output")
+    OUTPUT_DIR: Path = output_dir()
     LOG_LEVEL: str = "INFO"
     HOST: str = "0.0.0.0"
     PORT: int = 8000
@@ -39,7 +41,8 @@ class Settings(BaseSettings):
     # Cleanup
     CLEANUP_HOURS: int = 24
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    # exe로 실행할 때도 exe 옆의 .env 를 읽도록 절대경로로 고정한다.
+    model_config = {"env_file": str(env_file()), "env_file_encoding": "utf-8"}
 
     def validate_required(self) -> list[str]:
         errors = []
@@ -53,6 +56,10 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# .env 에서 상대경로가 들어온 경우 exe 옆 폴더 기준으로 절대경로화한다.
+if not settings.OUTPUT_DIR.is_absolute():
+    settings.OUTPUT_DIR = (user_data_root() / settings.OUTPUT_DIR).resolve()
 
 # .env에 은퇴한 모델이 남아 있으면 자동으로 승계 모델로 교체한다.
 _replacement = RETIRED_MODEL_REPLACEMENTS.get(settings.CLAUDE_MODEL)
