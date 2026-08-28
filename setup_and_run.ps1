@@ -1,4 +1,4 @@
-# DealSitePlus News Clipper - Setup & Run
+﻿# DealSitePlus News Clipper - Setup & Run
 # UTF-8 output
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8

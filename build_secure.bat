@@ -1,44 +1,50 @@
 @echo off
 setlocal
-chcp 65001 >nul
 title DealSite News Clipper - Secure Build
 
 set "ROOT=%~dp0"
 set "OBF=%ROOT%build_obf"
 
 echo ============================================================
-echo   DealSite News Clipper - 보호 빌드 (난독화)
+echo   DealSite News Clipper - Secure Build (obfuscated)
 echo ============================================================
 echo.
 
-echo [1/5] 의존성 확인...
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Python not found. Install Python 3.11+ and add it to PATH.
+    pause
+    exit /b 1
+)
+
+echo [1/5] Installing dependencies...
 python -m pip install -q -r requirements.txt
 python -m pip install -q pyinstaller pyarmor
-if errorlevel 1 ( echo [오류] 의존성 설치 실패 & pause & exit /b 1 )
+if errorlevel 1 ( echo [ERROR] dependency install failed & pause & exit /b 1 )
 
-echo [2/5] 이전 산출물 정리...
+echo [2/5] Cleaning previous output...
 if exist "%OBF%" rmdir /s /q "%OBF%"
 if exist "%ROOT%build" rmdir /s /q "%ROOT%build"
 if exist "%ROOT%dist" rmdir /s /q "%ROOT%dist"
 mkdir "%OBF%"
 
-echo [3/5] 파이썬 소스 난독화...
+echo [3/5] Obfuscating Python sources...
 python -m pyarmor.cli gen --recursive --output "%OBF%" "%ROOT%app" "%ROOT%launcher.py"
-if errorlevel 1 ( echo [오류] 난독화 실패 & pause & exit /b 1 )
+if errorlevel 1 ( echo [ERROR] obfuscation failed & pause & exit /b 1 )
 xcopy "%ROOT%app\templates" "%OBF%\app\templates" /E /I /Y /Q >nul
 xcopy "%ROOT%app\static"    "%OBF%\app\static"    /E /I /Y /Q >nul
 
-echo [4/5] 실행 파일 빌드...
+echo [4/5] Building executable...
 set "DEALSITE_SRC_ROOT=%OBF%"
 python -m PyInstaller dealsite.spec --noconfirm
-if errorlevel 1 ( echo [오류] 빌드 실패 & pause & exit /b 1 )
+if errorlevel 1 ( echo [ERROR] build failed & pause & exit /b 1 )
 
-echo [5/5] 정리...
+echo [5/5] Cleaning up...
 rmdir /s /q "%OBF%"
 
 echo.
 echo ============================================================
-echo   보호 빌드 완료: dist\DealSiteNewsClipper.exe
-echo   파이썬 소스가 암호화되어 디컴파일해도 로직을 읽을 수 없습니다.
+echo   Secure build complete: dist\DealSiteNewsClipper.exe
+echo   Python sources are encrypted - decompiling won't reveal logic.
 echo ============================================================
 pause
